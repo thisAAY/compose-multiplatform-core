@@ -154,8 +154,8 @@ private class TouchesGestureRecognizer(
             }
         }
 
-        val interactionMode = touchesToInteractionMode.values.map {
-            it?.findAncestorInteropWrappingView()?.interactionMode
+        val interactionMode = touchesToInteractionMode.map {
+            it.value?.findAncestorInteractionMode(it.key)
         }.findMostRestrictedInteractionMode()
         when (interactionMode) {
             is UIKitInteropInteractionMode.Cooperative -> {
@@ -213,7 +213,7 @@ private class TouchesGestureRecognizer(
             cancelAllTrackedTouches()
             return
         }
-
+        // Remove until todo
         fun endTouchesEvent() {
             onTouchesEvent(trackedTouches.keys, withEvent, TouchesEventKind.ENDED)
             stopTrackingTouches(touches)
@@ -232,6 +232,12 @@ private class TouchesGestureRecognizer(
                 endTouchesEvent()
             }
         }
+        // TODO
+//        onTouchesEvent(trackedTouches.keys, withEvent, TouchesEventKind.ENDED)
+//        stopTrackingTouches(touches)
+//        if (trackedTouches.isEmpty()) {
+//            setState(UIGestureRecognizerStateEnded)
+//        }
     }
 
     override fun touchesCancelled(touches: Set<*>, withEvent: UIEvent) {
@@ -572,6 +578,26 @@ internal class OverlayInputView(
         super.pressesEnded(presses, withEvent)
     }
 
+    // TODO Merge with the working one
+//    override fun hitTest(point: CValue<CGPoint>, withEvent: UIEvent?): UIView? {
+//        return if (isPointInsideInteractionBounds(point)) {
+//            hitTestInteropView(point)?.let { interopView ->
+//                interopView.hitTest(
+//                    point = convertPoint(point, toView = interopView),
+//                    withEvent = withEvent
+//                )
+//            } ?: subviews.firstNotNullOfOrNull { it ->
+//                (it as? IntermediateTextScrollView)?.let {
+//                    val inputPoint = convertPoint(point, toView = it)
+//
+//                    it.hitTest(inputPoint, withEvent)
+//                }
+//            } ?: this
+//        } else {
+//            null
+//        }
+//    }
+
     override fun hitTest(point: CValue<CGPoint>, withEvent: UIEvent?): UIView? {
         if (!isPointInsideInteractionBounds(point)) {
             return null
@@ -722,11 +748,14 @@ internal class BackgroundInputView(
  * query. This extension method allows finding the nearest [InteropWrappingView] up the view
  * hierarchy and request the value retroactively.
  */
-private fun UIView.findAncestorInteropWrappingView(): InteropWrappingView? {
+private fun UIView.findAncestorInteractionMode(touch: UITouch): UIKitInteropInteractionMode? {
     var view: UIView? = this
     while (view != null) {
         if (view is InteropWrappingView) {
-            return view
+            return view.interactionMode
+        }
+        if (view is IntermediateTextScrollView) {
+            return view.interactionModeAt(touch.locationInView(view))
         }
         view = view.superview
     }
@@ -745,6 +774,7 @@ private fun UIView?.hasTrackingUIScrollView(): Boolean {
         }
         if (view is UIScrollView &&
             view.userInteractionEnabled &&
+            view.scrollEnabled &&
             view.panGestureRecognizer.isEnabled()) {
             if ((view.panGestureRecognizer.state == UIGestureRecognizerStatePossible ||
                     view.panGestureRecognizer.state == UIGestureRecognizerStateBegan) &&

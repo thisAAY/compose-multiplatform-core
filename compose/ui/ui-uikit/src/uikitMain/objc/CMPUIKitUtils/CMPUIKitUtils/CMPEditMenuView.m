@@ -16,28 +16,6 @@
 
 #import "CMPEditMenuView.h"
 
-@implementation CMPEditMenuCustomAction
-
-- (id)initWithTitle:(NSString *)title action:(void (^)(void))actionBlock {
-    self = [super init];
-    if (self) {
-        _title = title;
-        _actionBlock = actionBlock;
-    }
-    return self;
-}
-
-- (BOOL)isEqual:(id)other {
-    return [self.title isEqualToString:((CMPEditMenuCustomAction *)other).title];
-}
-
-- (NSUInteger)hash {
-    return self.title.hash;
-}
-
-@end
-
-
 @interface CMPEditMenuViewRegister: NSObject
 
 @property (nonatomic, strong) NSMutableSet<CMPEditMenuView *> *trackedMenus;

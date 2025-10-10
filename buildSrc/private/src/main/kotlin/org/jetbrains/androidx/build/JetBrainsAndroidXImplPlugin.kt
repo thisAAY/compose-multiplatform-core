@@ -173,14 +173,11 @@ class JetBrainsAndroidXImplPlugin @Inject constructor(
     }
 
     private fun onKotlinMultiplatformPluginApplied(project: Project) {
-        /*
-        FIXME: No AndroidXComposeMultiplatformExtension anymore
         project.extensions.create(
             AndroidXComposeMultiplatformExtension::class.java,
             "androidXComposeMultiplatform",
             AndroidXComposeMultiplatformExtensionImpl::class.java
         )
-        */
 
         enableArtifactRedirectionPublishing(project)
         enableBinaryCompatibilityValidator(project)
@@ -201,10 +198,6 @@ class JetBrainsAndroidXImplPlugin @Inject constructor(
 }
 
 private fun enableArtifactRedirectionPublishing(project: Project) {
-    /*
-    FIXME: Deprecation + warnings as errors
-    'fun DependencyHandler.create(...): ExternalModuleDependency' is deprecated. Use single-string notation instead.
-
     val redirection = project.artifactRedirection() ?: return
 
     val ext = project.multiplatformExtension ?: error("expected a multiplatform project")
@@ -233,7 +226,6 @@ private fun enableArtifactRedirectionPublishing(project: Project) {
             project.publishAndroidxReference(target as AbstractKotlinTarget, newRootComponent)
         }
     }
-    */
 }
 
 @OptIn(ExperimentalBCVApi::class)

@@ -37,7 +37,7 @@ androidXMultiplatform {
         namespace = "androidx.compose.material3.adaptive.navigationsuite"
         compileSdk = 35
     }
-    jvmStubs()
+    desktop()
 
     defaultPlatform(PlatformIdentifier.ANDROID)
 

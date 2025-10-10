@@ -159,17 +159,20 @@ class JetBrainsAndroidXImplPlugin @Inject constructor(
             "JetBrainsAndroidXPlugin should be applied after AndroidXPlugin"
         }
 
-        val androidxExtension =
-            project.extensions.getByType(AndroidXExtension::class.java)
-        val androidxMultiplatformExtension =
-            project.extensions.getByType(AndroidXMultiplatformExtension::class.java)
-        project.changeMavenCoordinatesToJetBrains(androidxExtension)
-        project.configureMavenArtifactUpload(
-            androidxExtension, androidxMultiplatformExtension, componentFactory)
+        if (isJetBrainsForkStructureEnabled(project)) {
+            val androidxExtension =
+                project.extensions.getByType(AndroidXExtension::class.java)
+            val androidxMultiplatformExtension =
+                project.extensions.getByType(AndroidXMultiplatformExtension::class.java)
+            project.changeMavenCoordinatesToJetBrains(androidxExtension)
+            project.configureMavenArtifactUpload(
+                androidxExtension, androidxMultiplatformExtension, componentFactory
+            )
 
-        project.plugins.all { plugin ->
-            if (plugin is KotlinMultiplatformPluginWrapper) {
-                onKotlinMultiplatformPluginApplied(project)
+            project.plugins.all { plugin ->
+                if (plugin is KotlinMultiplatformPluginWrapper) {
+                    onKotlinMultiplatformPluginApplied(project)
+                }
             }
         }
     }

@@ -39,7 +39,7 @@ androidXMultiplatform {
         // TODO(b/345531033)
         experimentalProperties["android.lint.useK2Uast"] = false
     }
-    jvmStubs()
+    desktop()
 
     defaultPlatform(PlatformIdentifier.ANDROID)
 
@@ -80,10 +80,8 @@ androidXMultiplatform {
             }
         }
 
-        jvmStubsMain {
+        desktopMain {
             dependsOn(jvmMain)
-            dependencies {
-            }
         }
 
         androidDeviceTest {

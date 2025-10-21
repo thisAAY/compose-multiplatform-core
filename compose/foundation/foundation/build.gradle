@@ -136,7 +136,7 @@ if (AndroidXComposePlugin.isMultiplatformEnabled(project)) {
             nonJvmMain.dependsOn(skikoMain)
             nativeMain.dependsOn(nonJvmMain)
             webMain.dependsOn(nonJvmMain)
-            uikitMain {
+            iosMain {
                 dependencies {
                     implementation(project(":compose:ui:ui-uikit"))
                 }

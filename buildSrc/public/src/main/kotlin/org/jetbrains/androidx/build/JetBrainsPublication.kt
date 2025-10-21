@@ -62,7 +62,7 @@ object JetBrainsPublication {
             ComposeComponent(":compose:ui:ui-tooling-preview"),
             ComposeComponent(
                 ":compose:ui:ui-uikit",
-                supportedPlatforms = ComposePlatforms.UI_KIT
+                supportedPlatforms = ComposePlatforms.IOS
             ),
             ComposeComponent(":compose:ui:ui-unit"),
             ComposeComponent(":compose:ui:ui-util"),
@@ -95,25 +95,25 @@ object JetBrainsPublication {
             ComposeComponent(
                 path = ":lifecycle:lifecycle-common",
                 // No android target here - jvm artefact will be used for android apps as well
-                supportedPlatforms = ComposePlatforms.ALL_AOSP - ComposePlatforms.ANDROID
+                supportedPlatforms = ComposePlatforms.ALL - ComposePlatforms.ANDROID
             ),
             ComposeComponent(
                 path = ":lifecycle:lifecycle-runtime",
-                supportedPlatforms = ComposePlatforms.ALL_AOSP
+                supportedPlatforms = ComposePlatforms.ALL
             ),
             ComposeComponent(
                 path = ":lifecycle:lifecycle-viewmodel",
-                supportedPlatforms = ComposePlatforms.ALL_AOSP
+                supportedPlatforms = ComposePlatforms.ALL
             ),
-            ComposeComponent(":lifecycle:lifecycle-viewmodel-savedstate", supportedPlatforms = ComposePlatforms.ALL_AOSP),
+            ComposeComponent(":lifecycle:lifecycle-viewmodel-savedstate", supportedPlatforms = ComposePlatforms.ALL),
             ComposeComponent(":lifecycle:lifecycle-runtime-compose", supportedPlatforms = ComposePlatforms.ALL),
             ComposeComponent(":lifecycle:lifecycle-viewmodel-compose"),
             ComposeComponent(":lifecycle:lifecycle-viewmodel-navigation3"),
         ),
         "NAVIGATION" to listOf(
             ComposeComponent(":navigation:navigation-compose"),
-            ComposeComponent(":navigation:navigation-common", supportedPlatforms = ComposePlatforms.ALL_AOSP - ComposePlatforms.WINDOWS_NATIVE),
-            ComposeComponent(":navigation:navigation-runtime", supportedPlatforms = ComposePlatforms.ALL_AOSP - ComposePlatforms.WINDOWS_NATIVE),
+            ComposeComponent(":navigation:navigation-common", supportedPlatforms = ComposePlatforms.ALL - ComposePlatforms.WINDOWS_NATIVE),
+            ComposeComponent(":navigation:navigation-runtime", supportedPlatforms = ComposePlatforms.ALL - ComposePlatforms.WINDOWS_NATIVE),
         ),
         "NAVIGATION_3" to listOf(
             ComposeComponent(":navigation3:navigation3-ui"),
@@ -122,11 +122,11 @@ object JetBrainsPublication {
             ComposeComponent(":navigationevent:navigationevent-compose"),
         ),
         "SAVEDSTATE" to listOf(
-            ComposeComponent(":savedstate:savedstate", supportedPlatforms = ComposePlatforms.ALL_AOSP),
+            ComposeComponent(":savedstate:savedstate", supportedPlatforms = ComposePlatforms.ALL),
             ComposeComponent(":savedstate:savedstate-compose", supportedPlatforms = ComposePlatforms.ALL),
         ),
         "WINDOW" to listOf(
-            ComposeComponent(":window:window-core", supportedPlatforms = ComposePlatforms.ALL_AOSP - ComposePlatforms.WINDOWS_NATIVE),
+            ComposeComponent(":window:window-core", supportedPlatforms = ComposePlatforms.ALL - ComposePlatforms.WINDOWS_NATIVE),
         ),
     )
 
@@ -174,19 +174,19 @@ object JetBrainsPublication {
  */
 class JetBrainsVersions(val libraryToVersion: Map<String, String>) : Serializable {
     init {
-        val nonRegisteredLibraries =
-            libraryToVersion.keys.filterNot(JetBrainsPublication::isLibraryRegistered)
+        val nonRegisteredLibraries = libraryToVersion.keys.minus(DEFAULT)
+                .filterNot(JetBrainsPublication::isLibraryRegistered)
         require(nonRegisteredLibraries.isEmpty()) {
             "Libraries $nonRegisteredLibraries are not registered in the JetBrainsPublication class"
         }
     }
 
     fun versionOf(libraryName: String): String {
-        return libraryToVersion[libraryName] ?: "9999.0.0-SNAPSHOT"
+        return libraryToVersion[libraryName] ?: libraryToVersion[DEFAULT] ?: "9999.0.0-SNAPSHOT"
     }
 
     companion object {
-
+        const val DEFAULT = "DEFAULT"
     }
 }
 

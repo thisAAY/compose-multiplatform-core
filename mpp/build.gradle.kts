@@ -1,4 +1,4 @@
-import org.jetbrains.androidx.build.AbstractComposePublishingTask
+import org.jetbrains.androidx.build.ComposePublishingTask
 import org.jetbrains.androidx.build.ArtifactRedirection
 import org.jetbrains.androidx.build.ComposePlatforms
 import org.jetbrains.androidx.build.JetBrainsPublication
@@ -8,12 +8,6 @@ import org.jetbrains.androidx.build.hasRedirection
 // this module depends on all other modules info, so we need to initialize them first
 (rootProject.allprojects - project).forEach {
     evaluationDependsOn(it.path)
-}
-
-open class ComposePublishingTask : AbstractComposePublishingTask() {
-    override fun dependsOnComposeTask(task: String) {
-        dependsOn(task)
-    }
 }
 
 val libraryToComponents = JetBrainsPublication.libraryToComponents
@@ -76,8 +70,8 @@ val testWebWasm = tasks.register("testWebWasm") {
 }
 
 tasks.register("testUIKit") {
-    val suffix = if (System.getProperty("os.arch") == "aarch64") "SimArm64Test" else "X64Test"
-    val uikitTestSubtaskName = "uikit$suffix"
+    val suffix = if (System.getProperty("os.arch") == "aarch64") "SimulatorArm64Test" else "X64Test"
+    val uikitTestSubtaskName = "ios$suffix"
 
     dependsOn(":compose:runtime:runtime:$uikitTestSubtaskName")
     dependsOn(":compose:ui:ui-text:$uikitTestSubtaskName")

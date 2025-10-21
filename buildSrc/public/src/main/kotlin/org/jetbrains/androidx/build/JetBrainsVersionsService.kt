@@ -28,9 +28,11 @@ private fun Project.parseJetBrainsVersions() = JetBrainsVersions(
         .filter { it.startsWith(ARGUMENT_PREFIX) }
         .associate { propertyName ->
             val library = propertyName.replace(ARGUMENT_PREFIX, "")
-            require(isLibraryRegistered(library)) {
-                "$propertyName points to a non registered library in the " +
-                    "JetBrainsPublication class"
+            if (library != JetBrainsVersions.DEFAULT) { // special case: setting version for non-existing library
+                require(isLibraryRegistered(library)) {
+                    "$propertyName points to a non registered library in the " +
+                        "JetBrainsPublication class"
+                }
             }
             val version = project.properties[propertyName] as String
             library to version

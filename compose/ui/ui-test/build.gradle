@@ -170,7 +170,7 @@ if (AndroidXComposePlugin.isMultiplatformEnabled(project)) {
             jsMain.dependsOn(nonJvmMain)
             wasmJsMain.dependsOn(nonJvmMain)
             nativeMain.dependsOn(nonJvmMain)
-            uikitMain.dependsOn(nativeMain)
+            iosMain.dependsOn(nativeMain)
             macosMain.dependsOn(nativeMain)
 
             desktopMain.dependencies {

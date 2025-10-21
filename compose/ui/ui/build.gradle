@@ -223,7 +223,7 @@ if(AndroidXComposePlugin.isMultiplatformEnabled(project)) {
                     implementation("androidx.navigationevent:navigationevent:$navigationEventVersion")
                 }
             }
-            uikitMain {
+            iosMain {
                 dependencies {
                     implementation(project(":compose:ui:ui-uikit"))
                 }
@@ -415,8 +415,8 @@ tasks.register("updateTranslations", UpdateTranslationsTask.class) {
 tasks.register("updateTranslationsIos", UpdateTranslationsTask.class) {
     group = "localization"
     gitRepo = "https://github.com/JetBrains/compose-multiplatform-core"
-    repoResDirectories = ["compose/ui/ui/src/uikitMain/res"]
-    targetDirectory = project.file("src/uikitMain/kotlin/androidx/compose/ui/platform/l10n")
+    repoResDirectories = ["compose/ui/ui/src/iosMain/res"]
+    targetDirectory = project.file("src/iosMain/kotlin/androidx/compose/ui/platform/l10n")
     targetPackageName = "androidx.compose.ui.platform.l10n"
     kotlinStringsPackageName = "androidx.compose.ui.platform"
     stringByResourceName = [

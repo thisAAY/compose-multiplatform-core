@@ -69,16 +69,16 @@ val testWebWasm = tasks.register("testWebWasm") {
     dependsOn(":navigation:navigation-runtime:wasmJsTest")
 }
 
-tasks.register("testUIKit") {
+tasks.register("testIos") {
     val suffix = if (System.getProperty("os.arch") == "aarch64") "SimulatorArm64Test" else "X64Test"
-    val uikitTestSubtaskName = "ios$suffix"
+    val iosTestSubtaskName = "ios$suffix"
 
-    dependsOn(":compose:runtime:runtime:$uikitTestSubtaskName")
-    dependsOn(":compose:ui:ui-text:$uikitTestSubtaskName")
-    dependsOn(":compose:ui:ui:$uikitTestSubtaskName")
-    dependsOn(":compose:material3:material3:$uikitTestSubtaskName")
-    dependsOn(":compose:foundation:foundation:$uikitTestSubtaskName")
-    dependsOn(":collection:collection:$uikitTestSubtaskName")
+    dependsOn(":compose:runtime:runtime:$iosTestSubtaskName")
+    dependsOn(":compose:ui:ui-text:$iosTestSubtaskName")
+    dependsOn(":compose:ui:ui:$iosTestSubtaskName")
+    dependsOn(":compose:material3:material3:$iosTestSubtaskName")
+    dependsOn(":compose:foundation:foundation:$iosTestSubtaskName")
+    dependsOn(":collection:collection:$iosTestSubtaskName")
 }
 
 tasks.register("testRuntimeNative") {

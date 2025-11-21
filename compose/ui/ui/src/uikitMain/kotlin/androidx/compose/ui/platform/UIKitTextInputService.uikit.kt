@@ -459,10 +459,9 @@ internal class UIKitTextInputService(
             textUIView?.let { textUIView ->
                 val density = view.density
                 val offset = textUIView.frame.useContents { origin.asDpOffset().toOffset(density) }
-//                val target = rect.translate(-offset).toDpRect(density).asCGRect()
-                val target = rect.toDpRect(density).asCGRect() // TODO: This fixes incorrect menu position without NITI. WHY?
+                val target = rect.translate(-offset).toDpRect(density).asCGRect()
                 textUIView.showEditMenuAtRect(
-                    targetRect = rect.toDpRect(view.density).asCGRect(),
+                    targetRect = target,
                     copy = onCopyRequested,
                     cut = onCutRequested,
                     paste = onPasteRequested,

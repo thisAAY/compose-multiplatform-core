@@ -730,19 +730,35 @@ internal class IntermediateTextInputUIView(
     private var customActions: List<CMPEditMenuCustomAction> = emptyList()
 
     override fun copy(sender: Any?) {
-        onCopy?.invoke()
+        if (usingNITI) {
+            onCopy?.invoke()
+        } else {
+            super.copy(sender)
+        }
     }
 
     override fun paste(sender: Any?) {
-        onPaste?.invoke()
+        if (usingNITI) {
+            onPaste?.invoke()
+        } else {
+            super.paste(sender)
+        }
     }
 
     override fun cut(sender: Any?) {
-        onCut?.invoke()
+        if (usingNITI) {
+            onCut?.invoke()
+        } else {
+            super.cut(sender)
+        }
     }
 
     override fun selectAll(sender: Any?) {
-        onSelectAll?.invoke()
+        if (usingNITI) {
+            onSelectAll?.invoke()
+        } else {
+            super.selectAll(sender)
+        }
     }
 
     override fun canPerformAction(action: COpaquePointer?, withSender: Any?): Boolean {

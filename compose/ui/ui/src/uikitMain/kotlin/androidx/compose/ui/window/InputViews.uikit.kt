@@ -213,7 +213,7 @@ private class TouchesGestureRecognizer(
             cancelAllTrackedTouches()
             return
         }
-        // Remove until todo
+
         fun endTouchesEvent() {
             onTouchesEvent(trackedTouches.keys, withEvent, TouchesEventKind.ENDED)
             stopTrackingTouches(touches)
@@ -232,12 +232,6 @@ private class TouchesGestureRecognizer(
                 endTouchesEvent()
             }
         }
-        // TODO
-//        onTouchesEvent(trackedTouches.keys, withEvent, TouchesEventKind.ENDED)
-//        stopTrackingTouches(touches)
-//        if (trackedTouches.isEmpty()) {
-//            setState(UIGestureRecognizerStateEnded)
-//        }
     }
 
     override fun touchesCancelled(touches: Set<*>, withEvent: UIEvent) {
@@ -578,26 +572,6 @@ internal class OverlayInputView(
         super.pressesEnded(presses, withEvent)
     }
 
-    // TODO Merge with the working one
-//    override fun hitTest(point: CValue<CGPoint>, withEvent: UIEvent?): UIView? {
-//        return if (isPointInsideInteractionBounds(point)) {
-//            hitTestInteropView(point)?.let { interopView ->
-//                interopView.hitTest(
-//                    point = convertPoint(point, toView = interopView),
-//                    withEvent = withEvent
-//                )
-//            } ?: subviews.firstNotNullOfOrNull { it ->
-//                (it as? IntermediateTextScrollView)?.let {
-//                    val inputPoint = convertPoint(point, toView = it)
-//
-//                    it.hitTest(inputPoint, withEvent)
-//                }
-//            } ?: this
-//        } else {
-//            null
-//        }
-//    }
-
     override fun hitTest(point: CValue<CGPoint>, withEvent: UIEvent?): UIView? {
         if (!isPointInsideInteractionBounds(point)) {
             return null
@@ -609,6 +583,15 @@ internal class OverlayInputView(
         if (interopViewHitTest != null && interopViewHitTest.superview != this) {
             // Interop view is located inside another container.
             return null
+        }
+        val nativeTextInputViewHitTest = subviews.firstNotNullOfOrNull { it ->
+            (it as? IntermediateTextScrollView)?.let {
+                val inputPoint = convertPoint(point, toView = it)
+                it.hitTest(inputPoint, withEvent)
+            }
+        }
+        if (nativeTextInputViewHitTest != null) {
+            return nativeTextInputViewHitTest
         }
         return super.hitTest(point, withEvent)
     }

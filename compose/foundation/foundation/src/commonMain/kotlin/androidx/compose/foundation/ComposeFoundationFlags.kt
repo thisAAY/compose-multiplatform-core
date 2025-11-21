@@ -69,7 +69,7 @@ object ComposeFoundationFlags {
      * context menu that has no public APIs will be used instead.
      */
     // TODO mazunin-v: don't forget to revert it
-    @Suppress("MutableBareField") @JvmField var isNewContextMenuEnabled = true
+    @Suppress("MutableBareField") @JvmField var isNewContextMenuEnabled = false
 
     /**
      * Whether to use the new smart selection feature in

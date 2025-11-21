@@ -162,7 +162,6 @@ internal class UIKitTextInputService(
         currentImeActionHandler = onImeActionPerformed
 
         attachIntermediateTextInputView()
-        println("=== UIKitTextInputService, viewAttached, useNativeInputHandling: $useNativeInputHandling")
         textUIView?.input = createSkikoInput()
         textUIView?.inputTraits = getUITextInputTraits(imeOptions)
 
@@ -181,7 +180,9 @@ internal class UIKitTextInputService(
 
         textUIView?.inputTraits = EmptyInputTraits
         textUIView?.input = null
+
         detachIntermediateTextInputView()
+        useNativeInputHandling = false
     }
 
     override fun showSoftwareKeyboard() {
@@ -388,7 +389,6 @@ internal class UIKitTextInputService(
     val hasInvalidations: Boolean get() = textInputServiceInvalidationsCount > 0
 
     private fun getState(): TextFieldValue? = sessionEditProcessor?.toTextFieldValue()
-    // TODO Probably not required
 
     // Fixes a problem where the menu is shown before the textUIView gets its final layout.
     private var showMenuOrUpdatePosition = {}
@@ -418,7 +418,36 @@ internal class UIKitTextInputService(
         onSelectAllRequested: (() -> Unit)?,
         onAutofillRequested: (() -> Unit)?
     ) {
-        // TODO mazunin-v check selection container adoption
+        if (useNativeInputHandling) {
+            textUIView?.updateMenuActions(
+                onCopyRequested,
+                onPasteRequested,
+                onCutRequested,
+                onSelectAllRequested,
+                emptyList()
+            )
+        } else {
+            showEditMenu(
+                rect,
+                onCopyRequested,
+                onPasteRequested,
+                onCutRequested,
+                onSelectAllRequested,
+                onAutofillRequested,
+                emptyList()
+            )
+        }
+    }
+
+    private fun showEditMenu(
+        rect: Rect,
+        onCopyRequested: (() -> Unit)?,
+        onPasteRequested: (() -> Unit)?,
+        onCutRequested: (() -> Unit)?,
+        onSelectAllRequested: (() -> Unit)?,
+        onAutofillRequested: (() -> Unit)?,
+        customActions: List<CMPEditMenuCustomAction>
+    ) {
         if (textUIView == null) {
             // If showMenu() is called and textUIView is not created,
             // then it means that showMenu() called in SelectionContainer without any textfields,
@@ -432,14 +461,13 @@ internal class UIKitTextInputService(
                 val offset = textUIView.frame.useContents { origin.asDpOffset().toOffset(density) }
 //                val target = rect.translate(-offset).toDpRect(density).asCGRect()
                 val target = rect.toDpRect(density).asCGRect() // TODO: This fixes incorrect menu position without NITI. WHY?
-                textUIView.showTextMenu(
-                    targetRect = target,
-                    textActions = object : TextActions {
-                        override val copy: (() -> Unit)? = onCopyRequested
-                        override val cut: (() -> Unit)? = onCutRequested
-                        override val paste: (() -> Unit)? = onPasteRequested
-                        override val selectAll: (() -> Unit)? = onSelectAllRequested
-                    }
+                textUIView.showEditMenuAtRect(
+                    targetRect = rect.toDpRect(view.density).asCGRect(),
+                    copy = onCopyRequested,
+                    cut = onCutRequested,
+                    paste = onPasteRequested,
+                    selectAll = onSelectAllRequested,
+                    customActions = customActions
                 )
                 textMenuAppearanceChanged()
             }
@@ -473,12 +501,14 @@ internal class UIKitTextInputService(
         if (useNativeInputHandling) {
             textUIView?.updateMenuActions(copy, paste, cut, selectAll, customActions)
         } else {
-            showMenu(
+            showEditMenu(
                 rect = targetRect,
                 onCopyRequested = copy,
                 onPasteRequested = paste,
                 onCutRequested = cut,
-                onSelectAllRequested = selectAll
+                onSelectAllRequested = selectAll,
+                onAutofillRequested = null,
+                customActions = customActions
             )
         }
 

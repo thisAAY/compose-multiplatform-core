@@ -201,9 +201,7 @@ internal class IntermediateTextInputUIView(
 
     override fun resignFirstResponder(): Boolean {
         input?.onResignFocus()
-        if (!usingNITI) {
-            hideTextMenu()
-        }
+        hideTextMenu()
         return super.resignFirstResponder()
     }
 

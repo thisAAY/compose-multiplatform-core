@@ -387,6 +387,7 @@ internal fun CoreTextField(
         manager, enabled, interactionSource, state, focusRequester, readOnly, offsetMapping
     )
 
+    val shouldDrawSelectionHighlight = !platformDrawsSelectionHighlight()
     val drawModifier =
         Modifier.drawBehind {
             state.layoutResult?.let { layoutResult ->
@@ -400,6 +401,7 @@ internal fun CoreTextField(
                         layoutResult.value,
                         state.highlightPaint,
                         state.selectionBackgroundColor,
+                        shouldDrawSelectionHighlight
                     )
                 }
             }
@@ -1107,6 +1109,13 @@ internal expect fun CursorHandle(
     modifier: Modifier,
     minTouchTargetSize: DpSize = DpSize.Unspecified,
 )
+
+/**
+ * Returns `true` if the platform draws the selection highlight itself, `false` if Compose should draw it.
+ * CMP platforms like iOS may render their own native selection highlight.
+ */
+@Composable
+internal expect fun platformDrawsSelectionHighlight(): Boolean
 
 // TODO(b/262648050) Try to find a better API.
 private fun notifyFocusedRect(

@@ -19,8 +19,9 @@ package androidx.compose.ui.platform
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.uikit.utils.CMPEditMenuCustomAction
 
-// TODO: Rename
-interface UIKitTextContextMenuHandler {
+interface UIKitNativeTextInputContext {
+    fun usingNativeInput(): Boolean
+
     fun updateEditMenuState(
         targetRect: Rect,
         copy: (() -> Unit)?,
@@ -29,6 +30,4 @@ interface UIKitTextContextMenuHandler {
         selectAll: (() -> Unit)?,
         customActions: List<CMPEditMenuCustomAction>
     )
-
-    fun usingNativeInput(): Boolean
 }

@@ -48,11 +48,10 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.UIKitTextContextMenuHandler
+import androidx.compose.ui.platform.UIKitNativeTextInputContext
 import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.uikit.LocalContextMenuHandler
+import androidx.compose.ui.uikit.LocalNativeTextInputContext
 import androidx.compose.ui.uikit.utils.CMPEditMenuView
-import androidx.compose.ui.uikit.utils.CMPTextInputView
 import androidx.compose.ui.uikit.utils.CMPEditMenuCustomAction
 import androidx.compose.ui.unit.Density
 import kotlin.coroutines.resume
@@ -148,7 +147,7 @@ private fun ProvideNewContextMenuDefaultProviders(
 ) {
     val toolbarProvider = LocalTextContextMenuToolbarProvider.current
     val dropdownProvider = LocalTextContextMenuDropdownProvider.current
-    val contextMenuHandlerProvider = LocalContextMenuHandler.current
+    val contextMenuHandlerProvider = LocalNativeTextInputContext.current
 
     if (toolbarProvider == null || dropdownProvider == null) {
         val layoutCoordinates: MutableState<LayoutCoordinates?> = remember {
@@ -203,7 +202,7 @@ private class ContextMenuToolbarProvider(
     private val menuDelay: Duration,
     val editMenuView: CMPEditMenuView,
     private val density: Density,
-    private val nativeContextMenuHandler: UIKitTextContextMenuHandler,
+    private val nativeContextMenuHandler: UIKitNativeTextInputContext,
     private val coordinates: () -> LayoutCoordinates?
 ): TextContextMenuProvider {
     @OptIn(FlowPreview::class)

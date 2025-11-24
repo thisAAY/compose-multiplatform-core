@@ -20,7 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.ResolvedTextDirection
-import androidx.compose.ui.uikit.LocalContextMenuHandler
+import androidx.compose.ui.uikit.LocalNativeTextInputContext
 import androidx.compose.ui.unit.DpSize
 
 @OptIn(ExperimentalComposeUiApi::class)
@@ -34,7 +34,7 @@ internal actual fun SelectionHandle(
     lineHeight: Float,
     modifier: Modifier
 ) {
-    val nativeInputProvider = LocalContextMenuHandler.current
+    val nativeInputProvider = LocalNativeTextInputContext.current
     if (nativeInputProvider.usingNativeInput()) {
         return // iOS draws selection handles itself.
     } else {

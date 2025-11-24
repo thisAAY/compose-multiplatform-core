@@ -18,7 +18,7 @@ package androidx.compose.ui.uikit
 
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.ExperimentalComposeUiApi
-import androidx.compose.ui.platform.UIKitTextContextMenuHandler
+import androidx.compose.ui.platform.UIKitNativeTextInputContext
 import platform.UIKit.UIView
 import platform.UIKit.UIViewController
 
@@ -43,6 +43,6 @@ val LocalUIView = staticCompositionLocalOf<UIView> {
 }
 
 @ExperimentalComposeUiApi
-val LocalContextMenuHandler = staticCompositionLocalOf<UIKitTextContextMenuHandler> {
+val LocalNativeTextInputContext = staticCompositionLocalOf<UIKitNativeTextInputContext> {
     error("CompositionLocal UIKitTextContextMenuHandler not provided")
 }

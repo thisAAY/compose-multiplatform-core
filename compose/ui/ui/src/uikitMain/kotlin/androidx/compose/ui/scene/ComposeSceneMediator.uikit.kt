@@ -61,7 +61,7 @@ import androidx.compose.ui.platform.ViewConfiguration
 import androidx.compose.ui.platform.WindowInfo
 import androidx.compose.ui.semantics.SemanticsOwner
 import androidx.compose.ui.uikit.InterfaceOrientation
-import androidx.compose.ui.uikit.LocalContextMenuHandler
+import androidx.compose.ui.uikit.LocalNativeTextInputContext
 import androidx.compose.ui.uikit.LocalUIView
 import androidx.compose.ui.uikit.OnFocusBehavior
 import androidx.compose.ui.uikit.density
@@ -602,7 +602,7 @@ internal class ComposeSceneMediator(
         CompositionLocalProvider(
             LocalInteropContainer provides interopContainer,
             LocalUIView provides _overlayView,
-            LocalContextMenuHandler provides textInputService,
+            LocalNativeTextInputContext provides textInputService,
             content = content
         )
 

@@ -48,7 +48,6 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.asCGRect
 import androidx.compose.ui.unit.asDpOffset
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toDpRect
 import androidx.compose.ui.unit.toOffset
 import androidx.compose.ui.unit.toSize
@@ -91,7 +90,7 @@ internal class UIKitTextInputService(
      */
     private var onKeyboardPresses: (Set<*>) -> Unit,
     private var focusManager: () -> ComposeSceneFocusManager?
-) : PlatformTextInputService, TextToolbar, UIKitTextContextMenuHandler {
+) : PlatformTextInputService, TextToolbar, UIKitNativeTextInputContext {
 
     var useNativeInputHandling: Boolean = false
         private set

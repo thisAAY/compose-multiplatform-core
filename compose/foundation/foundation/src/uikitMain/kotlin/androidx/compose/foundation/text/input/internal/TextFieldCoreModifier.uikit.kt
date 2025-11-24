@@ -22,7 +22,7 @@ import androidx.compose.ui.node.CompositionLocalConsumerModifierNode
 import androidx.compose.ui.node.currentValueOf
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.uikit.LocalContextMenuHandler
+import androidx.compose.ui.uikit.LocalNativeTextInputContext
 
 @OptIn(ExperimentalComposeUiApi::class)
 internal actual fun CompositionLocalConsumerModifierNode.drawPlatformSelection(
@@ -30,7 +30,7 @@ internal actual fun CompositionLocalConsumerModifierNode.drawPlatformSelection(
     selection: TextRange,
     textLayoutResult: TextLayoutResult
 ) {
-    val usingNITI = currentValueOf(LocalContextMenuHandler).usingNativeInput()
+    val usingNITI = currentValueOf(LocalNativeTextInputContext).usingNativeInput()
     // Don't draw selection on iOS when using NITI
     if (!usingNITI) {
         drawDefaultSelection(scope, selection, textLayoutResult)

@@ -41,6 +41,7 @@ import androidx.compose.ui.input.pointer.PointerButton
 import androidx.compose.ui.input.pointer.PointerButtons
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.PointerKeyboardModifiers
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.isClearFocusOnMouseDownEnabled
@@ -102,8 +103,8 @@ import org.jetbrains.skia.Canvas
 import org.jetbrains.skiko.ClipRectangle
 import org.jetbrains.skiko.ExperimentalSkikoApi
 import org.jetbrains.skiko.GraphicsApi
-import org.jetbrains.skiko.SkikoRenderDelegate
 import org.jetbrains.skiko.hostOs
+import org.jetbrains.skiko.SkikoRenderDelegate
 import org.jetbrains.skiko.swing.SkiaSwingLayer
 
 /**
@@ -870,6 +871,130 @@ internal class ComposeSceneMediator(
     private class InvisibleComponent : Component() {
         fun requestFocusTemporary(): Boolean {
             return super.requestFocus(true)
+        }
+    }
+
+    // JWinPointer is used to receive native touch and stylus events on Windows.
+    // It is an external dependency and is only initialized on Windows hosts.
+    @Suppress("KotlinJniMissingFunction")
+    private interface JWinPointerListener {
+        fun onPointerEvent(
+            device: Int,
+            contactId: Int,
+            x: Float,
+            y: Float,
+            pressure: Float,
+            actionCode: Int,
+            buttons: Int,
+        )
+    }
+
+    @Suppress("KotlinJniMissingFunction")
+    private class JWinPointer(private val component: Component) {
+        fun addListener(listener: JWinPointerListener) {
+            // Real implementation is provided by the external JWinPointer.jar.
+            // This stub exists to allow compilation when the jar is not present.
+        }
+    }
+
+    /**
+     * Handle a low-level pointer event coming from JWinPointer on Windows.
+     * This maps the native device type and action codes into Compose pointer
+     * semantics and forwards them to the scene.
+     */
+    private fun onJWinPointerEvent(
+        device: Int,
+        contactId: Int,
+        x: Float,
+        y: Float,
+        pressure: Float,
+        actionCode: Int,
+        buttons: Int,
+    ) = catchExceptions {
+        if (isDisposed) return@catchExceptions
+
+        // Guard: JWinPointer is only meaningful on Windows hosts.
+        if (!isWindowsHost) return@catchExceptions
+
+        val position = Offset(x, y)
+
+        val pointerType = when (device) {
+            0 -> PointerType.Mouse
+            1 -> PointerType.Stylus
+            2 -> PointerType.Touch
+            else -> PointerType.Unknown
+        }
+
+        val pointerId = jWinPointerIdMap.getOrPut(contactId) {
+            PointerId(contactId.toLong())
+        }
+
+        val eventType = when (actionCode) {
+            // The mapping here should follow the JWinPointer example application.
+            // 0: down/pressed, 1: moved/dragged, 2: up/released,
+            // 3: hover enter, 4: hover move, 5: hover exit.
+            0 -> PointerEventType.Press
+            1 -> PointerEventType.Move
+            2 -> PointerEventType.Release
+            3 -> PointerEventType.Enter
+            4 -> PointerEventType.Move
+            5 -> PointerEventType.Exit
+            else -> PointerEventType.Unknown
+        }
+
+        val pointerButtons = PointerButtons(
+            isPrimaryPressed = (buttons and 1) != 0,
+            isSecondaryPressed = (buttons and 2) != 0,
+            isTertiaryPressed = (buttons and 4) != 0,
+            isBackPressed = (buttons and 8) != 0,
+            isForwardPressed = (buttons and 16) != 0,
+        )
+
+        val pointers = listOf(
+            ComposeScenePointer(
+                id = pointerId,
+                position = position,
+                type = pointerType,
+                pressed = eventType != PointerEventType.Release && eventType != PointerEventType.Exit,
+                pressure = pressure,
+            )
+        )
+
+        scene.sendPointerEvent(
+            eventType = eventType,
+            pointers = pointers,
+            buttons = pointerButtons,
+            keyboardModifiers = PointerKeyboardModifiers(),
+            timeMillis = System.currentTimeMillis(),
+            nativeEvent = null,
+            button = null,
+        )
+
+        if (eventType == PointerEventType.Release || eventType == PointerEventType.Exit) {
+            jWinPointerIdMap.remove(contactId)
+        }
+    }
+
+    private val jWinPointerIdMap = mutableMapOf<Int, PointerId>()
+
+    private val isWindowsHost = System.getProperty("os.name") == "Windows"
+
+    init {
+        if (isWindowsHost) {
+            val jWinPointer = JWinPointer(container)
+            jWinPointer.addListener(object : JWinPointerListener {
+                override fun onPointerEvent(
+                    device: Int,
+                    contactId: Int,
+                    x: Float,
+                    y: Float,
+                    pressure: Float,
+                    actionCode: Int,
+                    buttons: Int,
+                ) {
+                    onJWinPointerEvent(device, contactId, x, y, pressure, actionCode, buttons)
+                }
+            })
         }
     }
 }

@@ -1043,7 +1043,7 @@ internal class ComposeSceneMediator(
     private val isWindowsHost = System.getProperty("os.name").contains("Windows", ignoreCase = true)
 
     init {
-        if (isWindowsHost.not()) {
+        if (isWindowsHost) {
             val bridge = JWinPointerBridge(container)
             bridge.addListener(object : JWinPointerListener {
                 override fun onPointerEvent(

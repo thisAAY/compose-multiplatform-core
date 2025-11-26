@@ -38,7 +38,7 @@ import org.jetbrains.skiko.SkiaLayerAnalytics
  * A panel used as a main view in [ComposeWindow] and [ComposeDialog].
  */
 internal class ComposeWindowPanel(
-    private val window: Window,
+    val window: Window,
     private val isUndecorated: () -> Boolean,
     skiaLayerAnalytics: SkiaLayerAnalytics,
     savedState: SavedState? = null,

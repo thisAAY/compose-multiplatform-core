@@ -23,6 +23,7 @@ import androidx.compose.ui.ComposeFeatureFlags
 import androidx.compose.ui.ComposeUiFlags
 import androidx.compose.ui.awt.AwtEventListener
 import androidx.compose.ui.awt.AwtEventListeners
+import androidx.compose.ui.awt.ComposeWindowPanel
 import androidx.compose.ui.awt.DebouncingEdtExecutor
 import androidx.compose.ui.awt.OnlyValidPrimaryMouseButtonFilter
 import androidx.compose.ui.awt.SwingInteropViewGroup
@@ -96,7 +97,9 @@ import java.awt.event.MouseWheelEvent
 import java.awt.im.InputMethodRequests
 import javax.accessibility.Accessible
 import javax.swing.JComponent
+import javax.swing.JFrame
 import javax.swing.SwingUtilities
+import jwinpointer.JWinPointerReader
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.roundToInt
 import org.jetbrains.skia.Canvas
@@ -874,27 +877,91 @@ internal class ComposeSceneMediator(
         }
     }
 
-    // JWinPointer is used to receive native touch and stylus events on Windows.
-    // It is an external dependency and is only initialized on Windows hosts.
-    @Suppress("KotlinJniMissingFunction")
+    /**
+     * Listener that normalizes native JWinPointer events into a single callback
+     * that can be adapted to Compose pointer events.
+     */
     private interface JWinPointerListener {
         fun onPointerEvent(
-            device: Int,
-            contactId: Int,
-            x: Float,
-            y: Float,
-            pressure: Float,
-            actionCode: Int,
-            buttons: Int,
+            deviceType: Int,
+            pointerId: Int,
+            eventType: Int,
+            x: Int,
+            y: Int,
+            pressure: Int,
+            buttonMask: Int,
         )
     }
 
+    /**
+     * Thin wrapper around [JWinPointerReader] that attaches to the window
+     * containing the given Swing [component] and forwards all pointer
+     * notifications to [JWinPointerListener].
+     */
     @Suppress("KotlinJniMissingFunction")
-    private class JWinPointer2(private val component: Component) {
+    private class JWinPointerBridge(private val component: Component) {
         fun addListener(listener: JWinPointerListener) {
-            println("Fake JWinPointer")
-            // Real implementation is provided by the external JWinPointer.jar.
-            // This stub exists to allow compilation when the jar is not present.
+            val comWindow = component as ComposeWindowPanel
+            val mainFrame = comWindow.window as JFrame
+            val reader = JWinPointerReader(mainFrame)
+
+            reader.addPointerEventListener(object : JWinPointerReader.PointerEventListener {
+                override fun pointerXYEvent(
+                    deviceType: Int,
+                    pointerId: Int,
+                    eventType: Int,
+                    inverted: Boolean,
+                    x: Int,
+                    y: Int,
+                    pressure: Int,
+                ) {
+                    listener.onPointerEvent(
+                        deviceType = deviceType,
+                        pointerId = pointerId,
+                        eventType = eventType,
+                        x = x,
+                        y = y,
+                        pressure = pressure,
+                        buttonMask = 0,
+                    )
+                }
+
+                override fun pointerButtonEvent(
+                    deviceType: Int,
+                    pointerId: Int,
+                    eventType: Int,
+                    inverted: Boolean,
+                    buttonIndex: Int,
+                ) {
+                    val mask = 1 shl buttonIndex
+                    listener.onPointerEvent(
+                        deviceType = deviceType,
+                        pointerId = pointerId,
+                        eventType = eventType,
+                        x = 0,
+                        y = 0,
+                        pressure = 0,
+                        buttonMask = mask,
+                    )
+                }
+
+                override fun pointerEvent(
+                    deviceType: Int,
+                    pointerId: Int,
+                    eventType: Int,
+                    inverted: Boolean,
+                ) {
+                    listener.onPointerEvent(
+                        deviceType = deviceType,
+                        pointerId = pointerId,
+                        eventType = eventType,
+                        x = 0,
+                        y = 0,
+                        pressure = 0,
+                        buttonMask = 0,
+                    )
+                }
+            })
         }
     }
 
@@ -904,34 +971,33 @@ internal class ComposeSceneMediator(
      * semantics and forwards them to the scene.
      */
     private fun onJWinPointerEvent(
-        device: Int,
-        contactId: Int,
-        x: Float,
-        y: Float,
-        pressure: Float,
-        actionCode: Int,
-        buttons: Int,
+        deviceType: Int,
+        pointerId: Int,
+        x: Int,
+        y: Int,
+        pressure: Int,
+        eventType: Int,
+        buttonMask: Int,
     ) = catchExceptions {
-        println("On JWinPointer event")
         if (isDisposed) return@catchExceptions
 
         // Guard: JWinPointer is only meaningful on Windows hosts.
         if (!isWindowsHost) return@catchExceptions
 
-        val position = Offset(x, y)
+        val position = Offset(x.toFloat(), y.toFloat())
 
-        val pointerType = when (device) {
+        val pointerType = when (deviceType) {
             0 -> PointerType.Mouse
             1 -> PointerType.Stylus
             2 -> PointerType.Touch
             else -> PointerType.Unknown
         }
 
-        val pointerId = jWinPointerIdMap.getOrPut(contactId) {
-            PointerId(contactId.toLong())
+        val pointerIdCompose = jWinPointerIdMap.getOrPut(pointerId) {
+            PointerId(pointerId.toLong())
         }
 
-        val eventType = when (actionCode) {
+        val eventTypeCompose = when (eventType) {
             // The mapping here should follow the JWinPointer example application.
             // 0: down/pressed, 1: moved/dragged, 2: up/released,
             // 3: hover enter, 4: hover move, 5: hover exit.
@@ -945,35 +1011,30 @@ internal class ComposeSceneMediator(
         }
 
         val pointerButtons = PointerButtons(
-            isPrimaryPressed = (buttons and 1) != 0,
-            isSecondaryPressed = (buttons and 2) != 0,
-            isTertiaryPressed = (buttons and 4) != 0,
-            isBackPressed = (buttons and 8) != 0,
-            isForwardPressed = (buttons and 16) != 0,
+            isPrimaryPressed = (buttonMask and 1) != 0,
+            isSecondaryPressed = (buttonMask and 2) != 0,
+            isTertiaryPressed = (buttonMask and 4) != 0,
+            isBackPressed = (buttonMask and 8) != 0,
+            isForwardPressed = (buttonMask and 16) != 0,
         )
 
-        val pointers = listOf(
-            ComposeScenePointer(
-                id = pointerId,
-                position = position,
-                type = pointerType,
-                pressed = eventType != PointerEventType.Release && eventType != PointerEventType.Exit,
-                pressure = pressure,
-            )
-        )
-
+        // Dispatch as a single-pointer event using the existing ComposeScene
+        // pointer API. The pointer id and type are conveyed via nativeEvent
+        // if needed, while the observable semantics (position, buttons,
+        // keyboard modifiers) are passed through the normal parameters.
         scene.sendPointerEvent(
-            eventType = eventType,
-            pointers = pointers,
+            eventType = eventTypeCompose,
+            position = position,
+            timeMillis = System.currentTimeMillis(),
+            type = pointerType,
             buttons = pointerButtons,
             keyboardModifiers = PointerKeyboardModifiers(),
-            timeMillis = System.currentTimeMillis(),
-            nativeEvent = null,
+            nativeEvent = pointerIdCompose,
             button = null,
         )
 
-        if (eventType == PointerEventType.Release || eventType == PointerEventType.Exit) {
-            jWinPointerIdMap.remove(contactId)
+        if (eventTypeCompose == PointerEventType.Release || eventTypeCompose == PointerEventType.Exit) {
+            jWinPointerIdMap.remove(pointerId)
         }
     }
 
@@ -982,19 +1043,27 @@ internal class ComposeSceneMediator(
     private val isWindowsHost = System.getProperty("os.name").contains("Windows", ignoreCase = true)
 
     init {
-        if (isWindowsHost) {
-            val jWinPointer = JWinPointer(container)
-            jWinPointer.addListener(object : JWinPointerListener {
+        if (isWindowsHost.not()) {
+            val bridge = JWinPointerBridge(container)
+            bridge.addListener(object : JWinPointerListener {
                 override fun onPointerEvent(
-                    device: Int,
-                    contactId: Int,
-                    x: Float,
-                    y: Float,
-                    pressure: Float,
-                    actionCode: Int,
-                    buttons: Int,
+                    deviceType: Int,
+                    pointerId: Int,
+                    eventType: Int,
+                    x: Int,
+                    y: Int,
+                    pressure: Int,
+                    buttonMask: Int,
                 ) {
-                    onJWinPointerEvent(device, contactId, x, y, pressure, actionCode, buttons)
+                    onJWinPointerEvent(
+                        deviceType = deviceType,
+                        pointerId = pointerId,
+                        x = x,
+                        y = y,
+                        pressure = pressure,
+                        eventType = eventType,
+                        buttonMask = buttonMask,
+                    )
                 }
             })
         }
@@ -1054,7 +1123,6 @@ private fun ComposeScene.onMouseWheelEvent(
         nativeEvent = event
     )
 }
-
 
 private val MouseEvent.buttons get() = PointerButtons(
     // We should check [event.button] because of case where [event.modifiersEx] does not provide

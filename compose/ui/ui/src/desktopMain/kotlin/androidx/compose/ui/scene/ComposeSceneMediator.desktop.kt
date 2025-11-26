@@ -890,8 +890,9 @@ internal class ComposeSceneMediator(
     }
 
     @Suppress("KotlinJniMissingFunction")
-    private class JWinPointer(private val component: Component) {
+    private class JWinPointer2(private val component: Component) {
         fun addListener(listener: JWinPointerListener) {
+            println("Fake JWinPointer")
             // Real implementation is provided by the external JWinPointer.jar.
             // This stub exists to allow compilation when the jar is not present.
         }
@@ -911,6 +912,7 @@ internal class ComposeSceneMediator(
         actionCode: Int,
         buttons: Int,
     ) = catchExceptions {
+        println("On JWinPointer event")
         if (isDisposed) return@catchExceptions
 
         // Guard: JWinPointer is only meaningful on Windows hosts.
@@ -977,7 +979,7 @@ internal class ComposeSceneMediator(
 
     private val jWinPointerIdMap = mutableMapOf<Int, PointerId>()
 
-    private val isWindowsHost = System.getProperty("os.name") == "Windows"
+    private val isWindowsHost = System.getProperty("os.name").contains("Windows", ignoreCase = true)
 
     init {
         if (isWindowsHost) {

@@ -37,27 +37,35 @@ class JWinPointerReader2(windowName: String?) : IWinPointerReader {
 
     constructor(window: JFrame) : this(window.getTitle())
 
+    private var isInitialized = false
+
     init {
-        this.initializeBridge()
-        val hWnd = User32.INSTANCE.FindWindow(null as String?, windowName)
-        val nativeHandle = Pointer.nativeValue(hWnd.getPointer())
-        val plugin = WinPointerPlugin()
-        plugin.Initialize(this, nativeHandle)
+        try {
+            this.initializeBridge()
+            val hWnd = User32.INSTANCE.FindWindow(null as String?, windowName)
+            val nativeHandle = Pointer.nativeValue(hWnd.getPointer())
+            val plugin = WinPointerPlugin()
+            plugin.Initialize(this, nativeHandle)
+            isInitialized = true
+        } catch (e: Exception) {
+            // jni4net bridge initialization failed - this is expected on Java 9+ due to
+            // incompatibility with System.runFinalizersOnExit() which was removed.
+            // Windows Pointer API integration will not be available.
+            System.err.println("Warning: Failed to initialize Windows Pointer API bridge: ${e.message}")
+            System.err.println("Touch/stylus input will use standard mouse events instead.")
+            isInitialized = false
+        }
     }
 
     private fun initializeBridge() {
-        try {
-            val model = System.getProperty("sun.arch.data.model").toInt()
-            val jni4netLib = "jni4net.n.w" + model + ".v40-0.8.8.0.dll"
-            val appData = System.getProperty("java.io.tmpdir") + "JWinPointer\\"
-            this.extractDependencies(appData)
-            Bridge.setVerbose(true)
-            val jni4netPath = appData + jni4netLib
-            Bridge.init(File(jni4netPath))
-            Bridge.LoadAndRegisterAssemblyFrom(File(appData + "CsWinPointer.j4n.dll"))
-        } catch (e: IOException) {
-            e.printStackTrace()
-        }
+        val model = System.getProperty("sun.arch.data.model").toInt()
+        val jni4netLib = "jni4net.n.w" + model + ".v40-0.8.8.0.dll"
+        val appData = System.getProperty("java.io.tmpdir") + "JWinPointer\\"
+        this.extractDependencies(appData)
+        Bridge.setVerbose(false) // Reduce noise in logs
+        val jni4netPath = appData + jni4netLib
+        Bridge.init(File(jni4netPath))
+        Bridge.LoadAndRegisterAssemblyFrom(File(appData + "CsWinPointer.j4n.dll"))
     }
 
      fun extractDependencies(appDataDir: String) {

@@ -63,6 +63,7 @@ import androidx.compose.ui.platform.WindowInfo
 import androidx.compose.ui.platform.a11y.AccessibilityController
 import androidx.compose.ui.platform.a11y.ComposeSceneAccessible
 import androidx.compose.ui.scene.skia.SkiaLayerComponent
+import androidx.compose.ui.scene.touch.JWinPointerReader2
 import androidx.compose.ui.semantics.SemanticsOwner
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntSize
@@ -474,9 +475,9 @@ internal class ComposeSceneMediator(
             keyboardModifiersRequireUpdate = false
             windowContext.setKeyboardModifiers(event.keyboardModifiers)
         }
-        processMouseEvent {
-            scene.onMouseEvent(event.position, event)
-        }
+//        processMouseEvent {
+//            scene.onMouseEvent(event.position, event)
+//        }
     }
 
     private fun onMouseWheelEvent(event: MouseWheelEvent): Unit = catchExceptions {
@@ -488,14 +489,14 @@ internal class ComposeSceneMediator(
             return
         }
 
-        processMouseEvent {
-            val processingResult = scene.onMouseWheelEvent(event.position, event)
-            if (!processingResult.anyChangeConsumed) {
-                if (ComposeFeatureFlags.redispatchUnconsumedMouseWheelEvents.value) {
-                    redispatchUnconsumedMouseEvent(event)
-                }
-            }
-        }
+//        processMouseEvent {
+//            val processingResult = scene.onMouseWheelEvent(event.position, event)
+//            if (!processingResult.anyChangeConsumed) {
+//                if (ComposeFeatureFlags.redispatchUnconsumedMouseWheelEvents.value) {
+//                    redispatchUnconsumedMouseEvent(event)
+//                }
+//            }
+//        }
     }
 
     /**
@@ -903,9 +904,9 @@ internal class ComposeSceneMediator(
         fun addListener(listener: JWinPointerListener) {
             val comWindow = component as ComposeWindowPanel
             val mainFrame = comWindow.window as JFrame
-            val reader = JWinPointerReader(mainFrame)
+            val reader = JWinPointerReader2(mainFrame)
 
-            reader.addPointerEventListener(object : JWinPointerReader.PointerEventListener {
+            reader.addPointerEventListener(object : JWinPointerReader2.PointerEventListener {
                 override fun pointerXYEvent(
                     deviceType: Int,
                     pointerId: Int,

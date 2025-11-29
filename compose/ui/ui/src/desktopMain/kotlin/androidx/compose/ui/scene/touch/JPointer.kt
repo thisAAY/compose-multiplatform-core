@@ -80,9 +80,9 @@ class JWinPointerReader2(windowName: String?) : IWinPointerReader {
                 "CsWinPointer.dll",
                 "CsWinPointer.j4n.dll",
                 "jni4net.j-0.8.8.0.jar",
-                "jni4net.n-0.8.8.0.dll",
-                "jni4net.n.w32.v40-0.8.8.0.dll",
-                "jni4net.n.w64.v40-0.8.8.0.dll",
+                "jni4net.n-0.8.9.0.dll",
+                "jni4net.n.w32.v40-0.8.9.0.dll",
+                "jni4net.n.w64.v40-0.8.9.0.dll",
                 "Microsoft.Ink.dll"
             )
 

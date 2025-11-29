@@ -16,10 +16,10 @@
 
 package androidx.compose.ui.scene.touch
 
+import androidx.compose.ui.scene.touch.cswinpointer.IWinPointerReader
+import androidx.compose.ui.scene.touch.cswinpointer.WinPointerPlugin
 import com.sun.jna.Pointer
 import com.sun.jna.platform.win32.User32
-import cswinpointer.IWinPointerReader
-import cswinpointer.WinPointerPlugin
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files

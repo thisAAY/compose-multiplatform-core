@@ -232,6 +232,9 @@ if(AndroidXComposePlugin.isMultiplatformEnabled(project)) {
                 dependsOn(skikoMain)
                 dependencies {
                     implementation(libs.kotlinStdlibJdk8)
+                    implementation("net.java.dev.jna:jna:4.2.0")
+                    implementation("net.java.dev.jna:jna-platform:4.2.0")
+
                     implementation(fileTree("src/desktopMain/libs") { include("*.jar") })
                 }
             }

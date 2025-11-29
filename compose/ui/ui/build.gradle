@@ -151,6 +151,10 @@ if(AndroidXComposePlugin.isMultiplatformEnabled(project)) {
     }
 
     kotlin {
+
+        jvmToolchain {
+            languageVersion.set(JavaLanguageVersion.of(11))
+        }
         /*
          * When updating dependencies, make sure to make the an an analogous update in the
          * corresponding block above

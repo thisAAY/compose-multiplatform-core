@@ -100,7 +100,6 @@ import javax.accessibility.Accessible
 import javax.swing.JComponent
 import javax.swing.JFrame
 import javax.swing.SwingUtilities
-import jwinpointer.JWinPointerReader
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.roundToInt
 import org.jetbrains.skia.Canvas

@@ -59,7 +59,7 @@ class JWinPointerReader2(windowName: String?) : IWinPointerReader {
 
     private fun initializeBridge() {
         val model = System.getProperty("sun.arch.data.model").toInt()
-        val jni4netLib = "jni4net.n.w" + model + ".v40-0.8.8.0.dll"
+        val jni4netLib = "jni4net.n.w" + model + ".v40-0.8.9.0.dll"
         val appData = System.getProperty("java.io.tmpdir") + "JWinPointer\\"
         this.extractDependencies(appData)
         Bridge.setVerbose(false) // Reduce noise in logs

@@ -41,14 +41,6 @@ internal object WindowsTouchConstants {
  */
 internal interface TouchUser32 : User32 {
     /**
-     * Determines whether the specified window handle identifies an existing window.
-     *
-     * @param hWnd A handle to the window to test.
-     * @return True if the window handle identifies an existing window, false otherwise.
-     */
-    fun IsWindow(hWnd: WinDef.HWND): Boolean
-
-    /**
      * Retrieves the identifier of the thread that created the specified window.
      *
      * @param hWnd A handle to the window.

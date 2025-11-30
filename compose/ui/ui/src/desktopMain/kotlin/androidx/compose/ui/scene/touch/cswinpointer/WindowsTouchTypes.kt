@@ -141,6 +141,7 @@ internal interface TouchUser32 : User32 {
     /**
      * Passes message information to the specified window procedure.
      * Used to call the original window procedure for messages we don't handle.
+     * Using the ANSI version (CallWindowProcA) explicitly.
      *
      * @param lpPrevWndFunc The previous window procedure as a Long value.
      * @param hWnd A handle to the window.
@@ -149,7 +150,7 @@ internal interface TouchUser32 : User32 {
      * @param lParam Additional message-specific information.
      * @return The return value specifies the result of the message processing.
      */
-    fun CallWindowProc(
+    fun CallWindowProcA(
         lpPrevWndFunc: Long,
         hWnd: WinDef.HWND,
         uMsg: Int,

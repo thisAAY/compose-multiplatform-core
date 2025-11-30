@@ -121,7 +121,7 @@ internal class WindowsTouchBridge(
         println("Current thread name: ${Thread.currentThread().name}")
         println("Is on EDT: $isOnEDT")
         println("Threads match: ${windowThreadId == currentWindowsThreadId}")
-      
+
         println("============================================")
 
         if (windowProcessId != currentProcessId) {
@@ -265,7 +265,7 @@ internal class WindowsTouchBridge(
 
             // For all other messages, call the original window procedure
             return if (originalWndProc != null) {
-                user32.CallWindowProc(originalWndProc!!, hWnd, uMsg, wParam, lParam)
+                user32.CallWindowProcA(originalWndProc!!, hWnd, uMsg, wParam, lParam)
             } else {
                 WinDef.LRESULT(0)
             }

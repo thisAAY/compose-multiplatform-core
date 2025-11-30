@@ -120,6 +120,25 @@ internal interface TouchUser32 : User32 {
     fun SetWindowLongPtrA(hWnd: WinDef.HWND, nIndex: Int, dwNewLong: BaseTSD.LONG_PTR): BaseTSD.LONG_PTR
 
     /**
+     * Sends the specified message to a window or windows.
+     * Using the ANSI version (SendMessageA) explicitly.
+     * The function calls the window procedure for the specified window and does not return
+     * until the window procedure has processed the message.
+     *
+     * @param hWnd A handle to the window whose window procedure will receive the message.
+     * @param Msg The message to be sent.
+     * @param wParam Additional message-specific information.
+     * @param lParam Additional message-specific information.
+     * @return The return value specifies the result of the message processing.
+     */
+    fun SendMessageA(
+        hWnd: WinDef.HWND,
+        Msg: Int,
+        wParam: WinDef.WPARAM,
+        lParam: WinDef.LPARAM
+    ): WinDef.LRESULT
+
+    /**
      * Passes message information to the specified window procedure.
      * Used to call the original window procedure for messages we don't handle.
      *

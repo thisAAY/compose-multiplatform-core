@@ -212,7 +212,7 @@ internal class WindowsTouchBridge(
         if (windowThreadId != currentWindowsThreadId) {
             println("Threads don't match - dispatching RegisterTouchWindow to window's thread via SendMessage...")
             println("Sending WM_REGISTER_TOUCH message - it will be handled by WindowProc on thread $windowThreadId")
-            val registrationResult = user32.SendMessage(
+            val registrationResult = user32.SendMessageA(
                 hWnd,
                 WindowsTouchConstants.WM_REGISTER_TOUCH,
                 WinDef.WPARAM(0),

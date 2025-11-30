@@ -59,45 +59,6 @@ internal class WindowsTouchBridge(
     }
 
     /**
-     * Helper method to get detailed window information for debugging
-     */
-    private fun getWindowInfo(hWnd: WinDef.HWND): String {
-        val classNameBuffer = com.sun.jna.Memory(256)
-        val classNameLength = user32.GetClassNameW(hWnd, classNameBuffer, 256)
-        val className = if (classNameLength > 0) {
-            classNameBuffer.getWideString(0)
-        } else {
-            "Unknown"
-        }
-        
-        val parentHwnd = user32.GetParent(hWnd)
-        val rootHwnd = user32.GetAncestor(hWnd, 2) // GA_ROOT = 2
-        
-        val parentThread = if (parentHwnd != null && user32.IsWindow(parentHwnd)) {
-            val pidMem = com.sun.jna.Memory(Int.SIZE_BYTES.toLong())
-            val tid = user32.GetWindowThreadProcessId(parentHwnd, pidMem)
-            pidMem.close()
-            tid.toString()
-        } else {
-            "No parent"
-        }
-        
-        val rootThread = if (rootHwnd != null && user32.IsWindow(rootHwnd)) {
-            val pidMem = com.sun.jna.Memory(Int.SIZE_BYTES.toLong())
-            val tid = user32.GetWindowThreadProcessId(rootHwnd, pidMem)
-            pidMem.close()
-            tid.toString()
-        } else {
-            "No root"
-        }
-        
-        val parentHandleStr = parentHwnd?.pointer?.getLong(0)?.toString(16) ?: "None"
-        val rootHandleStr = rootHwnd?.pointer?.getLong(0)?.toString(16) ?: "None"
-        
-        return "Class: '$className', Parent HWND: 0x$parentHandleStr, Root HWND: 0x$rootHandleStr, ParentThread: $parentThread, RootThread: $rootThread"
-    }
-
-    /**
      * Initialize the touch bridge by:
      * 1. Registering the window for touch input
      * 2. Subclassing the window procedure to intercept WM_TOUCH messages
@@ -127,8 +88,7 @@ internal class WindowsTouchBridge(
         val isOnEDT = SwingUtilities.isEventDispatchThread()
 
         // Get detailed window information
-        val windowInfo = getWindowInfo(hWnd)
-        
+
         // Check parent and root window threads
         val parentHwnd = user32.GetParent(hWnd)
         val rootHwnd = user32.GetAncestor(hWnd, 2) // GA_ROOT = 2
@@ -153,7 +113,6 @@ internal class WindowsTouchBridge(
         // Debug output - log all thread information
         println("=== WindowsTouchBridge Thread Debug Info ===")
         println("Window handle: 0x${windowHandle.toString(16)}")
-        println("Window info: $windowInfo")
         println("Window thread ID (Windows): $windowThreadId")
         println("Window process ID: $windowProcessId")
         println("Current process ID: $currentProcessId")
@@ -162,14 +121,7 @@ internal class WindowsTouchBridge(
         println("Current thread name: ${Thread.currentThread().name}")
         println("Is on EDT: $isOnEDT")
         println("Threads match: ${windowThreadId == currentWindowsThreadId}")
-        if (parentHwnd != null) {
-            println("Parent window handle: 0x${parentHwnd.pointer.getLong(0).toString(16)}")
-            println("Parent window thread ID: $parentWindowThreadId")
-        }
-        if (rootHwnd != null) {
-            println("Root window handle: 0x${rootHwnd.pointer.getLong(0).toString(16)}")
-            println("Root window thread ID: $rootWindowThreadId")
-        }
+      
         println("============================================")
 
         if (windowProcessId != currentProcessId) {

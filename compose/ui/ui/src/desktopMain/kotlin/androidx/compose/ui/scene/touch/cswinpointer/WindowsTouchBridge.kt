@@ -67,13 +67,48 @@ internal class WindowsTouchBridge(
             return
         }
 
+        // Validate window handle before attempting registration
+        if (!user32.IsWindow(hWnd)) {
+            throw IllegalStateException(
+                "Invalid window handle (HWND). " +
+                    "Window handle: 0x${windowHandle.toString(16)}, " +
+                    "IsWindow check failed. " +
+                    "The window may not be created yet or the handle is invalid."
+            )
+        }
+
+        // Check if window belongs to this process
+        val processId = Memory(Int.SIZE_BYTES.toLong())
+        val threadId = user32.GetWindowThreadProcessId(hWnd, processId)
+        val windowProcessId = processId.getInt(0)
+        val currentProcessId = Kernel32.INSTANCE.GetCurrentProcessId().toInt()
+
+        if (windowProcessId != currentProcessId) {
+            processId.close()
+            throw IllegalStateException(
+                "Window does not belong to current process. " +
+                    "Window process ID: $windowProcessId, " +
+                    "Current process ID: $currentProcessId. " +
+                    "RegisterTouchWindow can only be called on windows owned by the calling process."
+            )
+        }
+        processId.close()
+
         // Register window for touch input
         val registered = user32.RegisterTouchWindow(hWnd, WinDef.UINT(0))
         if (!registered) {
             val error = Kernel32.INSTANCE.GetLastError()
+            val errorCode = error.toInt()
+            val errorDescription = when (errorCode) {
+                5 -> "ERROR_ACCESS_DENIED - The window handle is invalid, doesn't belong to this process, or access is denied"
+                87 -> "ERROR_INVALID_PARAMETER - The hWnd parameter is invalid"
+                else -> "Unknown error code"
+            }
             throw IllegalStateException(
                 "Failed to register window for touch input. " +
-                    "Windows error code: ${error.toInt()}"
+                    "Windows error code: $errorCode ($errorDescription). " +
+                    "Window handle: 0x${windowHandle.toString(16)}. " +
+                    "Make sure the window is fully created and belongs to this process."
             )
         }
 

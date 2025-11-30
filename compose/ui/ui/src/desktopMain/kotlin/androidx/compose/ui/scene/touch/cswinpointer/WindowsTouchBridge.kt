@@ -77,11 +77,27 @@ internal class WindowsTouchBridge(
             )
         }
 
-        // Check if window belongs to this process
+        // Check if window belongs to this process and gather thread information for debugging
         val processId = Memory(Int.SIZE_BYTES.toLong())
-        val threadId = user32.GetWindowThreadProcessId(hWnd, processId)
+        val windowThreadId = user32.GetWindowThreadProcessId(hWnd, processId)
         val windowProcessId = processId.getInt(0)
         val currentProcessId = Kernel32.INSTANCE.GetCurrentProcessId().toInt()
+        val currentWindowsThreadId = Kernel32.INSTANCE.GetCurrentThreadId().toInt()
+        val currentJavaThreadId = Thread.currentThread().id
+        val isOnEDT = SwingUtilities.isEventDispatchThread()
+
+        // Debug output - log all thread information
+        println("=== WindowsTouchBridge Thread Debug Info ===")
+        println("Window handle: 0x${windowHandle.toString(16)}")
+        println("Window thread ID (Windows): $windowThreadId")
+        println("Window process ID: $windowProcessId")
+        println("Current process ID: $currentProcessId")
+        println("Current Windows thread ID: $currentWindowsThreadId")
+        println("Current Java thread ID: $currentJavaThreadId")
+        println("Current thread name: ${Thread.currentThread().name}")
+        println("Is on EDT: $isOnEDT")
+        println("Threads match: ${windowThreadId == currentWindowsThreadId}")
+        println("============================================")
 
         if (windowProcessId != currentProcessId) {
             processId.close()
@@ -100,7 +116,8 @@ internal class WindowsTouchBridge(
             val error = Kernel32.INSTANCE.GetLastError()
             val errorCode = error.toInt()
             val errorDescription = when (errorCode) {
-                5 -> "ERROR_ACCESS_DENIED - The window handle is invalid, doesn't belong to this process, or access is denied"
+                5 -> "ERROR_ACCESS_DENIED - The calling thread does not own the specified window. " +
+                    "Window thread ID: $windowThreadId, Current thread ID: $currentWindowsThreadId"
                 87 -> "ERROR_INVALID_PARAMETER - The hWnd parameter is invalid"
                 else -> "Unknown error code"
             }
@@ -108,7 +125,8 @@ internal class WindowsTouchBridge(
                 "Failed to register window for touch input. " +
                     "Windows error code: $errorCode ($errorDescription). " +
                     "Window handle: 0x${windowHandle.toString(16)}. " +
-                    "Make sure the window is fully created and belongs to this process."
+                    "Thread ownership: Window belongs to thread $windowThreadId, " +
+                    "but RegisterTouchWindow was called from thread $currentWindowsThreadId."
             )
         }
 

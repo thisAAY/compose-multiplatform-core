@@ -60,6 +60,10 @@ import androidx.compose.ui.platform.ViewConfiguration
 import androidx.compose.ui.platform.WindowInfo
 import androidx.compose.ui.platform.a11y.AccessibilityController
 import androidx.compose.ui.platform.a11y.ComposeSceneAccessible
+import androidx.compose.ui.scene.ComposeScenePointer
+import androidx.compose.ui.scene.touch.cswinpointer.NativeTouchListener
+import androidx.compose.ui.scene.touch.cswinpointer.TouchState
+import androidx.compose.ui.scene.touch.cswinpointer.WindowsTouchBridge
 import androidx.compose.ui.scene.skia.SkiaLayerComponent
 import androidx.compose.ui.semantics.SemanticsOwner
 import androidx.compose.ui.unit.Density
@@ -104,7 +108,9 @@ import org.jetbrains.skiko.ExperimentalSkikoApi
 import org.jetbrains.skiko.GraphicsApi
 import org.jetbrains.skiko.SkikoRenderDelegate
 import org.jetbrains.skiko.hostOs
+import org.jetbrains.skiko.OS
 import org.jetbrains.skiko.swing.SkiaSwingLayer
+import androidx.compose.ui.input.pointer.PointerId
 
 /**
  * Provides a mediator for integrating a Compose scene with AWT/Swing component.
@@ -371,6 +377,10 @@ internal class ComposeSceneMediator(
 
     var isClearFocusOnMouseDownEnabled: Boolean = ComposeUiFlags.isClearFocusOnMouseDownEnabled
 
+    // Windows touch support
+    private var windowsTouchBridge: WindowsTouchBridge? = null
+    private val activeTouches = mutableMapOf<Int, Pair<TouchState, Offset>>() // Maps fingerId to (state, position)
+
     init {
         // Transparency is used during redrawer creation that triggered by [addNotify], so
         // it must be set to correct value before adding to the hierarchy to handle cases
@@ -572,6 +582,11 @@ internal class ComposeSceneMediator(
         scene.close()
         skiaLayerComponent.dispose()
 
+        // Dispose Windows touch bridge
+        windowsTouchBridge?.dispose()
+        windowsTouchBridge = null
+        activeTouches.clear()
+
         interopContainer.root.removeContainerListener(interopContainerListener)
         // Since rendering will not happen after, we need to execute all scheduled updates
         interopContainer.dispose()
@@ -585,6 +600,24 @@ internal class ComposeSceneMediator(
 
         architectureComponentsOwner.navigationEventDispatcherOwner
             .navigationEventDispatcher.addInput(navigationEventInput)
+
+        // Initialize Windows touch support if on Windows and windowHandle is valid
+        if (hostOs == OS.Windows && windowHandle != 0L) {
+            try {
+                val touchListener = object : NativeTouchListener {
+                    override fun onTouchEvent(fingerId: Int, x: Int, y: Int, state: TouchState) {
+                        onWindowsTouchEvent(fingerId, x, y, state)
+                    }
+                }
+                windowsTouchBridge = WindowsTouchBridge(windowHandle, contentComponent, touchListener)
+                windowsTouchBridge?.initialize()
+            } catch (e: Exception) {
+                // Touch registration might fail on systems without touch support
+                // Log but don't crash
+                System.err.println("Failed to initialize Windows touch support: ${e.message}")
+                windowsTouchBridge = null
+            }
+        }
 
         _onComponentAttached?.invoke()
         _onComponentAttached = null
@@ -744,6 +777,78 @@ internal class ComposeSceneMediator(
 
                 else -> false
             }
+    }
+
+    /**
+     * Handles Windows touch events from WindowsTouchBridge and converts them to ComposeScenePointer events
+     */
+    private fun onWindowsTouchEvent(fingerId: Int, x: Int, y: Int, state: TouchState) {
+        if (isDisposed) return
+
+        catchExceptions {
+            // Convert pixel coordinates to Offset using same method as mouse events
+            // Bridge provides coordinates in pixels relative to component
+            val pointInContainer = Point(x, y)
+            val sceneOffset = sceneBoundsInPx?.topLeft ?: Offset.Zero
+            val position = pointInContainer.asDpOffset().toOffset(contentComponent.density) - sceneOffset
+
+            val eventType = when (state) {
+                TouchState.DOWN -> {
+                    activeTouches[fingerId] = Pair(TouchState.DOWN, position)
+                    PointerEventType.Press
+                }
+                TouchState.MOVE -> {
+                    if (activeTouches.containsKey(fingerId)) {
+                        activeTouches[fingerId] = Pair(TouchState.MOVE, position)
+                        PointerEventType.Move
+                    } else {
+                        // If we receive a MOVE without a DOWN, treat it as a DOWN
+                        activeTouches[fingerId] = Pair(TouchState.DOWN, position)
+                        PointerEventType.Press
+                    }
+                }
+                TouchState.UP -> {
+                    activeTouches.remove(fingerId)
+                    PointerEventType.Release
+                }
+            }
+
+            // Build list of all active pointers with their current positions
+            val pointers = activeTouches.map { (id, stateAndPos) ->
+                val (touchState, touchPosition) = stateAndPos
+                val isPressed = touchState == TouchState.DOWN || touchState == TouchState.MOVE
+                ComposeScenePointer(
+                    id = PointerId(id.toLong()),
+                    position = if (id == fingerId) position else touchPosition,
+                    pressed = isPressed,
+                    type = PointerType.Touch,
+                    pressure = 1.0f // Windows touch doesn't provide pressure info in basic TOUCHINPUT
+                )
+            }
+
+            // Send pointer event to scene
+            scene.sendPointerEvent(
+                eventType = eventType,
+                pointers = if (pointers.isEmpty()) {
+                    // If no active touches, create a single pointer for the current event
+                    listOf(
+                        ComposeScenePointer(
+                            id = PointerId(fingerId.toLong()),
+                            position = position,
+                            pressed = state == TouchState.DOWN || state == TouchState.MOVE,
+                            type = PointerType.Touch,
+                            pressure = 1.0f
+                        )
+                    )
+                } else {
+                    pointers
+                },
+                buttons = PointerButtons(),
+                keyboardModifiers = PointerKeyboardModifiers(),
+                timeMillis = System.currentTimeMillis(),
+                nativeEvent = null
+            )
+        }
     }
 
     private inner class DesktopSemanticsOwnerListener : PlatformContext.SemanticsOwnerListener {

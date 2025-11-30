@@ -1,0 +1,216 @@
+/*
+ * Copyright 2024 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package androidx.compose.ui.scene.touch.cswinpointer
+
+import com.sun.jna.CallbackReference
+import com.sun.jna.Memory
+import com.sun.jna.Pointer
+import com.sun.jna.platform.win32.WinDef
+import com.sun.jna.platform.win32.WinNT
+import com.sun.jna.platform.win32.WinUser
+import com.sun.jna.platform.win32.Kernel32
+import java.awt.Component
+import javax.swing.SwingUtilities
+
+/**
+ * Bridge class that enables raw multi-touch input for Windows using JNA.
+ * This class hooks directly into the Windows API to intercept WM_TOUCH messages,
+ * bypassing the default mouse event synthesis.
+ *
+ * @param windowHandle The HWND (window handle) of the window to enable touch for
+ * @param component The AWT Component to convert coordinates relative to
+ * @param listener Callback interface to receive touch events
+ */
+internal class WindowsTouchBridge(
+    private val windowHandle: Long,
+    private val component: Component,
+    private val listener: NativeTouchListener
+) {
+    private val user32 = TouchUser32.INSTANCE
+    private val hWnd = WinDef.HWND(Pointer.createConstant(windowHandle))
+
+    // Keep strong reference to prevent GC
+    private var windowProcCallback: WindowProcCallback? = null
+
+    // Store original window procedure (as Long for easier handling)
+    private var originalWndProc: Long? = null
+
+    private var isRegistered = false
+
+    init {
+        if (windowHandle == 0L) {
+            throw IllegalArgumentException("Invalid window handle: 0")
+        }
+    }
+
+    /**
+     * Initialize the touch bridge by:
+     * 1. Registering the window for touch input
+     * 2. Subclassing the window procedure to intercept WM_TOUCH messages
+     */
+    fun initialize() {
+        if (isRegistered) {
+            return
+        }
+
+        // Register window for touch input
+        val registered = user32.RegisterTouchWindow(hWnd, WinDef.UINT(0))
+        if (!registered) {
+            throw IllegalStateException("Failed to register window for touch input")
+        }
+
+        // Create and install window procedure callback
+        windowProcCallback = WindowProcCallback()
+        
+        // Subclass the window to intercept messages
+        originalWndProc = user32.GetWindowLongPtrForSubclass(hWnd, WindowsTouchConstants.GWLP_WNDPROC)
+        
+        // Get the callback pointer from the callback object
+        val callbackFunctionPointer = CallbackReference.getFunctionPointer(windowProcCallback!!)
+
+        val result = user32.SetWindowLongPtrForSubclass(hWnd, WindowsTouchConstants.GWLP_WNDPROC,
+            callbackFunctionPointer
+        )
+        val lastError = Kernel32.INSTANCE.GetLastError()
+        if (result == 0L && lastError.toInt() != 0) {
+            throw IllegalStateException("Failed to subclass window procedure. Error: $lastError")
+        }
+
+        isRegistered = true
+    }
+
+    /**
+     * Clean up resources and restore the original window procedure
+     */
+    fun dispose() {
+        if (!isRegistered) {
+            return
+        }
+
+        try {
+            // Restore original window procedure
+            originalWndProc?.let { original ->
+                val originalPtr = Pointer.createConstant(original)
+                user32.SetWindowLongPtrForSubclass(hWnd, WindowsTouchConstants.GWLP_WNDPROC, originalPtr)
+            }
+
+            // Unregister touch window (if needed)
+            // Note: There's no explicit unregister function, but we can just ignore further messages
+
+        } catch (e: Exception) {
+            // Log but don't throw - cleanup should be best-effort
+            System.err.println("Error during WindowsTouchBridge disposal: ${e.message}")
+        } finally {
+            windowProcCallback = null
+            originalWndProc = null
+            isRegistered = false
+        }
+    }
+
+    /**
+     * Window procedure callback that intercepts WM_TOUCH messages.
+     * This is kept as a class field to prevent garbage collection.
+     */
+    private inner class WindowProcCallback : WinUser.WindowProc {
+        override fun callback(
+            hWnd: WinDef.HWND,
+            uMsg: Int,
+            wParam: WinDef.WPARAM,
+            lParam: WinDef.LPARAM
+        ): WinDef.LRESULT {
+            if (uMsg == WindowsTouchConstants.WM_TOUCH) {
+                handleTouchMessage(wParam, lParam)
+                // Return 0 to indicate we handled the message and prevent mouse event synthesis
+                return WinDef.LRESULT(0)
+            }
+
+            // For all other messages, call the original window procedure
+            return if (originalWndProc != null) {
+                user32.CallWindowProc(originalWndProc!!, hWnd, uMsg, wParam, lParam)
+            } else {
+                WinDef.LRESULT(0)
+            }
+        }
+    }
+
+    /**
+     * Handles WM_TOUCH message by parsing TOUCHINPUT structures and converting coordinates
+     */
+    private fun handleTouchMessage(wParam: WinDef.WPARAM, lParam: WinDef.LPARAM) {
+        val touchInputHandle = WinNT.HANDLE(lParam.toPointer())
+        // WPARAM contains the count as low-order word
+        val wParamValue = Pointer.nativeValue(wParam.toPointer())
+        val inputCount = (wParamValue and 0xFFFF).toLong()
+
+        if (inputCount <= 0) {
+            return
+        }
+
+        // Allocate memory for TOUCHINPUT structures
+        val touchInputSize = TOUCHINPUT().size()
+        val touchInputsMemory = Memory(touchInputSize * inputCount)
+
+        // Get touch input data
+        val success = user32.GetTouchInputInfo(
+            touchInputHandle,
+            WinDef.UINT(inputCount),
+            touchInputsMemory,
+            touchInputSize
+        )
+
+        if (!success) {
+            return
+        }
+
+        try {
+            // Parse each touch input
+            for (i in 0 until inputCount) {
+                val touchInputPtr = touchInputsMemory.share((touchInputSize * i).toLong(), touchInputSize.toLong())
+                val touchInput = TOUCHINPUT(touchInputPtr)
+
+                val state = when {
+                    touchInput.isDown() -> TouchState.DOWN
+                    touchInput.isUp() -> TouchState.UP
+                    touchInput.isMove() -> TouchState.MOVE
+                    else -> continue // Unknown state, skip
+                }
+
+                // Convert coordinates from screen (1/100th pixels) to component-relative pixels
+                val screenX = touchInput.x / 100.0
+                val screenY = touchInput.y / 100.0
+
+                // Convert screen coordinates to component-relative coordinates
+                val componentLocation = component.locationOnScreen
+                val relativeX = (screenX - componentLocation.x).toInt()
+                val relativeY = (screenY - componentLocation.y).toInt()
+
+                // Notify listener on EDT to ensure thread safety
+                SwingUtilities.invokeLater {
+                    listener.onTouchEvent(
+                        fingerId = touchInput.dwID,
+                        x = relativeX,
+                        y = relativeY,
+                        state = state
+                    )
+                }
+            }
+        } finally {
+            // Close the touch input handle
+            user32.CloseTouchInputHandle(touchInputHandle)
+        }
+    }
+}

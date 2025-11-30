@@ -182,27 +182,7 @@ internal class WindowsTouchBridge(
         }
         processId.close()
 
-        // Register window for touch input
-        val registered = user32.RegisterTouchWindow(hWnd, WinDef.UINT(0))
-        if (!registered) {
-            val error = Kernel32.INSTANCE.GetLastError()
-            val errorCode = error.toInt()
-            val errorDescription = when (errorCode) {
-                5 -> "ERROR_ACCESS_DENIED - The calling thread does not own the specified window. " +
-                    "Window thread ID: $windowThreadId, Current thread ID: $currentWindowsThreadId"
-                87 -> "ERROR_INVALID_PARAMETER - The hWnd parameter is invalid"
-                else -> "Unknown error code"
-            }
-            throw IllegalStateException(
-                "Failed to register window for touch input. " +
-                    "Windows error code: $errorCode ($errorDescription). " +
-                    "Window handle: 0x${windowHandle.toString(16)}. " +
-                    "Thread ownership: Window belongs to thread $windowThreadId, " +
-                    "but RegisterTouchWindow was called from thread $currentWindowsThreadId."
-            )
-        }
-
-        // Create and install window procedure callback
+        // Install WindowProc FIRST so we can handle the registration message on the window's thread
         windowProcCallback = WindowProcCallback()
         
         // Subclass the window to intercept messages
@@ -217,6 +197,49 @@ internal class WindowsTouchBridge(
         val lastError = Kernel32.INSTANCE.GetLastError()
         if (result == 0L && lastError.toInt() != 0) {
             throw IllegalStateException("Failed to subclass window procedure. Error: $lastError")
+        }
+
+        // Now dispatch the registration to the window's thread using SendMessage
+        // HOW IT WORKS:
+        // 1. SendMessage sends WM_REGISTER_TOUCH message to the window
+        // 2. Windows routes the message to our WindowProc callback (which we just installed)
+        // 3. WindowProc runs on the window's owner thread (Windows guarantees this)
+        // 4. Our WindowProc handles WM_REGISTER_TOUCH and calls RegisterTouchWindow there
+        // This ensures RegisterTouchWindow is called on the correct thread
+        if (windowThreadId != currentWindowsThreadId) {
+            println("Threads don't match - dispatching RegisterTouchWindow to window's thread via SendMessage...")
+            println("Sending WM_REGISTER_TOUCH message - it will be handled by WindowProc on thread $windowThreadId")
+            val registrationResult = user32.SendMessage(
+                hWnd,
+                WindowsTouchConstants.WM_REGISTER_TOUCH,
+                WinDef.WPARAM(0),
+                WinDef.LPARAM(0)
+            )
+            
+            if (registrationResult.toInt() == 0) {
+                // Registration failed - check error
+                val error = Kernel32.INSTANCE.GetLastError()
+                val errorCode = error.toInt()
+                throw IllegalStateException(
+                    "Failed to register touch window via SendMessage. " +
+                        "Windows error code: $errorCode. " +
+                        "Window handle: 0x${windowHandle.toString(16)}. " +
+                        "The registration was attempted on the window's thread ($windowThreadId) but failed."
+                )
+            }
+            println("Successfully registered touch window on window's thread!")
+        } else {
+            // Threads match - can register directly
+            val registered = user32.RegisterTouchWindow(hWnd, WinDef.UINT(0))
+            if (!registered) {
+                val error = Kernel32.INSTANCE.GetLastError()
+                val errorCode = error.toInt()
+                throw IllegalStateException(
+                    "Failed to register window for touch input. " +
+                        "Windows error code: $errorCode. " +
+                        "Window handle: 0x${windowHandle.toString(16)}."
+                )
+            }
         }
 
         isRegistered = true
@@ -261,10 +284,28 @@ internal class WindowsTouchBridge(
             wParam: WinDef.WPARAM,
             lParam: WinDef.LPARAM
         ): WinDef.LRESULT {
-            if (uMsg == WindowsTouchConstants.WM_TOUCH) {
-                handleTouchMessage(wParam, lParam)
-                // Return 0 to indicate we handled the message and prevent mouse event synthesis
-                return WinDef.LRESULT(0)
+            when (uMsg) {
+                WindowsTouchConstants.WM_REGISTER_TOUCH -> {
+                    // This WindowProc callback runs on the window's owner thread (Windows guarantees this)
+                    // SendMessage from initialize() sent us this custom message, so we can now safely
+                    // call RegisterTouchWindow on the correct thread
+                    println("WM_REGISTER_TOUCH received on thread ${Kernel32.INSTANCE.GetCurrentThreadId()}")
+                    println("Calling RegisterTouchWindow now - we're on the window's thread!")
+                    val registered = user32.RegisterTouchWindow(hWnd, WinDef.UINT(0))
+                    if (!registered) {
+                        val error = Kernel32.INSTANCE.GetLastError()
+                        val errorCode = error.toInt()
+                        println("Failed to register touch window on window's thread. Error code: $errorCode")
+                        return WinDef.LRESULT(0) // Return 0 to indicate failure
+                    }
+                    println("Successfully registered touch window in WindowProc callback!")
+                    return WinDef.LRESULT(1) // Return 1 to indicate success
+                }
+                WindowsTouchConstants.WM_TOUCH -> {
+                    handleTouchMessage(wParam, lParam)
+                    // Return 0 to indicate we handled the message and prevent mouse event synthesis
+                    return WinDef.LRESULT(0)
+                }
             }
 
             // For all other messages, call the original window procedure

@@ -29,6 +29,10 @@ import com.sun.jna.platform.win32.WinUser
  */
 internal object WindowsTouchConstants {
     const val WM_TOUCH = 0x0240
+    // Custom message to register touch on window's thread
+    // WM_USER = 0x0400, so 0x0401 is WM_USER + 1 (first available custom message)
+    // This is used internally to dispatch RegisterTouchWindow to the correct thread
+    const val WM_REGISTER_TOUCH = 0x0401
     const val GWLP_WNDPROC = -4
     const val TOUCHEVENTF_MOVE = 0x0001
     const val TOUCHEVENTF_DOWN = 0x0002

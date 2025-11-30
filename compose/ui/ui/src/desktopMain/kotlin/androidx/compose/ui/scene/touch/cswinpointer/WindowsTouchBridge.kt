@@ -59,8 +59,8 @@ internal class WindowsTouchBridge(
 
     /**
      * Initialize the touch bridge by:
-     * 1. Registering the window for touch input
-     * 2. Subclassing the window procedure to intercept WM_TOUCH messages
+     * 1. Subclassing the window procedure to intercept WM_TOUCH messages
+     * 2. Sending a custom message to register touch on the window's thread
      */
     fun initialize() {
         if (isRegistered) {
@@ -79,7 +79,7 @@ internal class WindowsTouchBridge(
 
         // Check if window belongs to this process
         val processId = Memory(Int.SIZE_BYTES.toLong())
-        val threadId = user32.GetWindowThreadProcessId(hWnd, processId)
+        val windowThreadId = user32.GetWindowThreadProcessId(hWnd, processId)
         val windowProcessId = processId.getInt(0)
         val currentProcessId = Kernel32.INSTANCE.GetCurrentProcessId().toInt()
 
@@ -94,25 +94,8 @@ internal class WindowsTouchBridge(
         }
         processId.close()
 
-        // Register window for touch input
-        val registered = user32.RegisterTouchWindow(hWnd, WinDef.UINT(0))
-        if (!registered) {
-            val error = Kernel32.INSTANCE.GetLastError()
-            val errorCode = error.toInt()
-            val errorDescription = when (errorCode) {
-                5 -> "ERROR_ACCESS_DENIED - The window handle is invalid, doesn't belong to this process, or access is denied"
-                87 -> "ERROR_INVALID_PARAMETER - The hWnd parameter is invalid"
-                else -> "Unknown error code"
-            }
-            throw IllegalStateException(
-                "Failed to register window for touch input. " +
-                    "Windows error code: $errorCode ($errorDescription). " +
-                    "Window handle: 0x${windowHandle.toString(16)}. " +
-                    "Make sure the window is fully created and belongs to this process."
-            )
-        }
-
-        // Create and install window procedure callback
+        // Create and install window procedure callback FIRST
+        // This allows us to handle the registration message on the window's thread
         windowProcCallback = WindowProcCallback()
         
         // Subclass the window to intercept messages
@@ -127,6 +110,27 @@ internal class WindowsTouchBridge(
         val lastError = Kernel32.INSTANCE.GetLastError()
         if (result == 0L && lastError.toInt() != 0) {
             throw IllegalStateException("Failed to subclass window procedure. Error: $lastError")
+        }
+
+        // Send a custom message to the window - this will be processed on the window's thread
+        // where RegisterTouchWindow can be safely called
+        val registrationResult = user32.SendMessage(
+            hWnd,
+            WindowsTouchConstants.WM_REGISTER_TOUCH,
+            WinDef.WPARAM(0),
+            WinDef.LPARAM(0)
+        )
+        
+        if (registrationResult.toInt() == 0) {
+            // Registration failed - check error
+            val error = Kernel32.INSTANCE.GetLastError()
+            val errorCode = error.toInt()
+            throw IllegalStateException(
+                "Failed to register touch window via SendMessage. " +
+                    "Windows error code: $errorCode. " +
+                    "Window handle: 0x${windowHandle.toString(16)}. " +
+                    "The registration was attempted on the window's thread but failed."
+            )
         }
 
         isRegistered = true
@@ -171,10 +175,28 @@ internal class WindowsTouchBridge(
             wParam: WinDef.WPARAM,
             lParam: WinDef.LPARAM
         ): WinDef.LRESULT {
-            if (uMsg == WindowsTouchConstants.WM_TOUCH) {
-                handleTouchMessage(wParam, lParam)
-                // Return 0 to indicate we handled the message and prevent mouse event synthesis
-                return WinDef.LRESULT(0)
+            when (uMsg) {
+                WindowsTouchConstants.WM_REGISTER_TOUCH -> {
+                    // We're now on the window's thread - register touch here
+                    // This is called via SendMessage from initialize(), ensuring we're on the correct thread
+                    val registered = user32.RegisterTouchWindow(hWnd, WinDef.UINT(0))
+                    if (!registered) {
+                        val error = Kernel32.INSTANCE.GetLastError()
+                        val errorCode = error.toInt()
+                        // Log error but return 0 to indicate failure
+                        System.err.println(
+                            "Failed to register touch window on window's thread. " +
+                                "Error code: $errorCode"
+                        )
+                        return WinDef.LRESULT(0)
+                    }
+                    return WinDef.LRESULT(1) // Success
+                }
+                WindowsTouchConstants.WM_TOUCH -> {
+                    handleTouchMessage(wParam, lParam)
+                    // Return 0 to indicate we handled the message and prevent mouse event synthesis
+                    return WinDef.LRESULT(0)
+                }
             }
 
             // For all other messages, call the original window procedure

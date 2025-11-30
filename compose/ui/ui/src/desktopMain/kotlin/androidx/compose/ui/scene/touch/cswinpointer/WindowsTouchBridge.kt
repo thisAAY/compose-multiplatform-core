@@ -70,7 +70,11 @@ internal class WindowsTouchBridge(
         // Register window for touch input
         val registered = user32.RegisterTouchWindow(hWnd, WinDef.UINT(0))
         if (!registered) {
-            throw IllegalStateException("Failed to register window for touch input")
+            val error = Kernel32.INSTANCE.GetLastError()
+            throw IllegalStateException(
+                "Failed to register window for touch input. " +
+                    "Windows error code: ${error.toInt()}"
+            )
         }
 
         // Create and install window procedure callback

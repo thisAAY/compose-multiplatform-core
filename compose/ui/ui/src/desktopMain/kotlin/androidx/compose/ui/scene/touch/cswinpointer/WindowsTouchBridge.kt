@@ -91,8 +91,7 @@ internal class WindowsTouchBridge(
 
         // Check parent and root window threads
         val parentHwnd = user32.GetParent(hWnd)
-        val rootHwnd = user32.GetAncestor(hWnd, 2) // GA_ROOT = 2
-        
+
         var parentWindowThreadId: String = "N/A"
         var rootWindowThreadId: String = "N/A"
         
@@ -103,16 +102,47 @@ internal class WindowsTouchBridge(
             parentWindowThreadId = parentThreadId.toString()
         }
         
-        if (rootHwnd != null && user32.IsWindow(rootHwnd)) {
-            val rootPidMem = Memory(Int.SIZE_BYTES.toLong())
-            val rootThreadId = user32.GetWindowThreadProcessId(rootHwnd, rootPidMem)
-            rootPidMem.close()
-            rootWindowThreadId = rootThreadId.toString()
+
+        // Get window class name for debugging
+        val classNameBuffer = Memory(256)
+        val classNameLength = user32.GetClassNameW(hWnd, classNameBuffer, 256)
+        val className = if (classNameLength > 0) {
+            classNameBuffer.getWideString(0)
+        } else {
+            "Unknown"
         }
+        classNameBuffer.close()
+        
+        // Get root window (top-level window)
+        val rootHwnd = user32.GetAncestor(hWnd, 2) // GA_ROOT = 2
+        val rootHandleValue = if (rootHwnd != null) {
+            rootHwnd.pointer.getLong(0)
+        } else {
+            null
+        }
+        
+        val rootClassNameBuffer = if (rootHwnd != null) Memory(256) else null
+        val rootClassName = if (rootHwnd != null && rootClassNameBuffer != null) {
+            val rootClassNameLen = user32.GetClassNameW(rootHwnd, rootClassNameBuffer, 256)
+            if (rootClassNameLen > 0) {
+                rootClassNameBuffer.getWideString(0)
+            } else {
+                "Unknown"
+            }
+        } else {
+            "N/A"
+        }
+        rootClassNameBuffer?.close()
 
         // Debug output - log all thread information
         println("=== WindowsTouchBridge Thread Debug Info ===")
         println("Window handle: 0x${windowHandle.toString(16)}")
+        println("Window class name: '$className'")
+        if (rootHandleValue != null) {
+            println("Root window handle: 0x${rootHandleValue.toString(16)}")
+            println("Root window class name: '$rootClassName'")
+            println("Is this the root window? ${windowHandle == rootHandleValue}")
+        }
         println("Window thread ID (Windows): $windowThreadId")
         println("Window process ID: $windowProcessId")
         println("Current process ID: $currentProcessId")
@@ -135,11 +165,54 @@ internal class WindowsTouchBridge(
         }
         processId.close()
 
+        // Find the child window that matches our windowHandle (the DirectX rendering window)
+        // Enumerate child windows of the root to find the one matching windowHandle
+        var finalTargetHwnd: WinDef.HWND = hWnd
+        if (rootHwnd != null) {
+            println("Enumerating child windows of root window 0x${rootHandleValue?.toString(16)} to find DirectX rendering window...")
+            var childHwnd = user32.GetWindow(rootHwnd, 5) // GW_CHILD = 5
+            var childIndex = 0
+            var foundChild = false
+            while (childHwnd != null && user32.IsWindow(childHwnd)) {
+                val childHandleValue = childHwnd.pointer.getLong(0)
+                val childClassNameBuffer = Memory(256)
+                val childClassNameLen = user32.GetClassNameW(childHwnd, childClassNameBuffer, 256)
+                val childClassName = if (childClassNameLen > 0) {
+                    childClassNameBuffer.getWideString(0)
+                } else {
+                    "Unknown"
+                }
+                childClassNameBuffer.close()
+                println("  Child window #$childIndex: HWND=0x${childHandleValue.toString(16)}, Class='$childClassName'")
+                
+                // Check if this child window matches our original windowHandle
+                if (childHandleValue == windowHandle) {
+                    println("  -> FOUND! This child window matches our windowHandle (DirectX rendering window)")
+                    finalTargetHwnd = childHwnd
+                    foundChild = true
+                }
+                
+                childHwnd = user32.GetWindow(childHwnd, 2) // GW_HWNDNEXT = 2
+                childIndex++
+            }
+            println("Found $childIndex child windows")
+            if (!foundChild) {
+                println("No child window matched windowHandle - will use original windowHandle")
+            }
+        }
+        
+        println("Using window for touch hooking: 0x${Pointer.nativeValue(finalTargetHwnd.pointer).toString(16)}")
+        
+        // Get thread ID for the final target window (might be different from original window)
+        val targetProcessId = Memory(Int.SIZE_BYTES.toLong())
+        val targetWindowThreadId = user32.GetWindowThreadProcessId(finalTargetHwnd, targetProcessId)
+        targetProcessId.close()
+
         // Install WindowProc FIRST so we can handle the registration message on the window's thread
         windowProcCallback = WindowProcCallback()
         
         // Subclass the window to intercept messages
-        val originalPtr = user32.GetWindowLongPtrA(hWnd, WindowsTouchConstants.GWLP_WNDPROC)
+        val originalPtr = user32.GetWindowLongPtrA(finalTargetHwnd, WindowsTouchConstants.GWLP_WNDPROC)
         originalWndProc = Pointer.nativeValue(originalPtr.toPointer())
         
         // Get the callback pointer from the callback object
@@ -147,7 +220,7 @@ internal class WindowsTouchBridge(
         val callbackNativeValue = Pointer.nativeValue(callbackFunctionPointer)
         val callbackAsLongPtr = BaseTSD.LONG_PTR(callbackNativeValue)
 
-        val result = user32.SetWindowLongPtrA(hWnd, WindowsTouchConstants.GWLP_WNDPROC, callbackAsLongPtr)
+        val result = user32.SetWindowLongPtrA(finalTargetHwnd, WindowsTouchConstants.GWLP_WNDPROC, callbackAsLongPtr)
         val lastError = Kernel32.INSTANCE.GetLastError()
         val resultValue = Pointer.nativeValue(result.toPointer())
         if (resultValue == 0L && lastError.toInt() != 0) {
@@ -161,11 +234,11 @@ internal class WindowsTouchBridge(
         // 3. WindowProc runs on the window's owner thread (Windows guarantees this)
         // 4. Our WindowProc handles WM_REGISTER_TOUCH and calls RegisterTouchWindow there
         // This ensures RegisterTouchWindow is called on the correct thread
-        if (windowThreadId != currentWindowsThreadId) {
+        if (targetWindowThreadId != currentWindowsThreadId) {
             println("Threads don't match - dispatching RegisterTouchWindow to window's thread via SendMessage...")
-            println("Sending WM_REGISTER_TOUCH message - it will be handled by WindowProc on thread $windowThreadId")
+            println("Sending WM_REGISTER_TOUCH message - it will be handled by WindowProc on thread $targetWindowThreadId")
             val registrationResult = user32.SendMessageA(
-                hWnd,
+                finalTargetHwnd,
                 WindowsTouchConstants.WM_REGISTER_TOUCH,
                 WinDef.WPARAM(0),
                 WinDef.LPARAM(0)
@@ -179,13 +252,13 @@ internal class WindowsTouchBridge(
                     "Failed to register touch window via SendMessage. " +
                         "Windows error code: $errorCode. " +
                         "Window handle: 0x${windowHandle.toString(16)}. " +
-                        "The registration was attempted on the window's thread ($windowThreadId) but failed."
+                        "The registration was attempted on the window's thread ($targetWindowThreadId) but failed."
                 )
             }
             println("Successfully registered touch window on window's thread!")
         } else {
             // Threads match - can register directly
-            val registered = user32.RegisterTouchWindow(hWnd, WinDef.UINT(0))
+            val registered = user32.RegisterTouchWindow(finalTargetHwnd, WinDef.UINT(0))
             if (!registered) {
                 val error = Kernel32.INSTANCE.GetLastError()
                 val errorCode = error.toInt()

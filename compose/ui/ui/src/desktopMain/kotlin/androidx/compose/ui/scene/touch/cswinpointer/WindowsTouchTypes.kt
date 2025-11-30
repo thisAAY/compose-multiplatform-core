@@ -64,6 +64,17 @@ internal interface TouchUser32 : User32 {
     fun GetClassNameW(hWnd: WinDef.HWND, lpClassName: Pointer, nMaxCount: Int): Int
 
     /**
+     * Retrieves a handle to a window that has the specified relationship (Z-Order or owner) to the specified window.
+     *
+     * @param hWnd A handle to a window.
+     * @param uCmd The relationship between the specified window and the window whose handle is to be retrieved.
+     *             GW_CHILD = 5, GW_HWNDNEXT = 2
+     * @return If the function succeeds, the return value is a window handle. If no window exists with the
+     *         specified relationship to the specified window, the return value is NULL.
+     */
+    fun GetWindow(hWnd: WinDef.HWND, uCmd: Int): WinDef.HWND?
+
+    /**
      * Registers a window as being touch-capable.
      *
      * @param hWnd The handle to the window to register.

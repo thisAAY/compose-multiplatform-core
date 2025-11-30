@@ -49,6 +49,16 @@ internal interface TouchUser32 : User32 {
     fun GetWindowThreadProcessId(hWnd: WinDef.HWND, lpdwProcessId: Pointer?): Int
 
     /**
+     * Retrieves the name of the class to which the specified window belongs.
+     *
+     * @param hWnd A handle to the window.
+     * @param lpClassName A pointer to the buffer that is to receive the class name string.
+     * @param nMaxCount The length of the buffer.
+     * @return The number of characters copied to the buffer, not including the terminating null character.
+     */
+    fun GetClassNameW(hWnd: WinDef.HWND, lpClassName: Pointer, nMaxCount: Int): Int
+
+    /**
      * Registers a window as being touch-capable.
      *
      * @param hWnd The handle to the window to register.

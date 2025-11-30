@@ -19,6 +19,7 @@ package androidx.compose.ui.scene.touch.cswinpointer
 import com.sun.jna.CallbackReference
 import com.sun.jna.Memory
 import com.sun.jna.Pointer
+import com.sun.jna.platform.win32.BaseTSD
 import com.sun.jna.platform.win32.WinDef
 import com.sun.jna.platform.win32.WinNT
 import com.sun.jna.platform.win32.WinUser
@@ -186,16 +187,18 @@ internal class WindowsTouchBridge(
         windowProcCallback = WindowProcCallback()
         
         // Subclass the window to intercept messages
-        originalWndProc = user32.GetWindowLongPtrForSubclass(hWnd, WindowsTouchConstants.GWLP_WNDPROC)
+        val originalPtr = user32.GetWindowLongPtrA(hWnd, WindowsTouchConstants.GWLP_WNDPROC)
+        originalWndProc = Pointer.nativeValue(originalPtr.toPointer())
         
         // Get the callback pointer from the callback object
         val callbackFunctionPointer = CallbackReference.getFunctionPointer(windowProcCallback!!)
+        val callbackNativeValue = Pointer.nativeValue(callbackFunctionPointer)
+        val callbackAsLongPtr = BaseTSD.LONG_PTR(callbackNativeValue)
 
-        val result = user32.SetWindowLongPtrForSubclass(hWnd, WindowsTouchConstants.GWLP_WNDPROC,
-            callbackFunctionPointer
-        )
+        val result = user32.SetWindowLongPtrA(hWnd, WindowsTouchConstants.GWLP_WNDPROC, callbackAsLongPtr)
         val lastError = Kernel32.INSTANCE.GetLastError()
-        if (result == 0L && lastError.toInt() != 0) {
+        val resultValue = Pointer.nativeValue(result.toPointer())
+        if (resultValue == 0L && lastError.toInt() != 0) {
             throw IllegalStateException("Failed to subclass window procedure. Error: $lastError")
         }
 
@@ -256,8 +259,8 @@ internal class WindowsTouchBridge(
         try {
             // Restore original window procedure
             originalWndProc?.let { original ->
-                val originalPtr = Pointer.createConstant(original)
-                user32.SetWindowLongPtrForSubclass(hWnd, WindowsTouchConstants.GWLP_WNDPROC, originalPtr)
+                val originalAsLongPtr = BaseTSD.LONG_PTR(original)
+                user32.SetWindowLongPtrA(hWnd, WindowsTouchConstants.GWLP_WNDPROC, originalAsLongPtr)
             }
 
             // Unregister touch window (if needed)

@@ -19,6 +19,7 @@ package androidx.compose.ui.scene.touch.cswinpointer
 import com.sun.jna.Native
 import com.sun.jna.Pointer
 import com.sun.jna.Structure
+import com.sun.jna.platform.win32.BaseTSD
 import com.sun.jna.platform.win32.User32
 import com.sun.jna.platform.win32.WinDef
 import com.sun.jna.platform.win32.WinNT
@@ -96,27 +97,27 @@ internal interface TouchUser32 : User32 {
     fun CloseTouchInputHandle(hTouchInput: WinNT.HANDLE): Boolean
 
     /**
-     * Changes an attribute of the specified window.
-     * Used here for setting the window procedure (subclassing).
-     * Returns the previous value as a Long.
+     * Retrieves information about the specified window (pointer-sized version for 64-bit compatibility).
+     * Used here for getting the original window procedure.
+     * Using the ANSI version (GetWindowLongPtrA) explicitly.
      *
      * @param hWnd A handle to the window.
-     * @param nIndex The zero-based offset to the value to be set.
-     * @param dwNewLong The replacement value as a Pointer.
-     * @return The previous value of the specified offset if the function succeeds, zero otherwise.
+     * @param nIndex The zero-based offset to the value to be retrieved (GWLP_WNDPROC = -4).
+     * @return The requested value as a LONG_PTR if the function succeeds, zero otherwise.
      */
-    fun SetWindowLongPtrForSubclass(hWnd: WinDef.HWND, nIndex: Int, dwNewLong: Pointer?): Long
+    fun GetWindowLongPtrA(hWnd: WinDef.HWND, nIndex: Int): BaseTSD.LONG_PTR
 
     /**
-     * Retrieves information about the specified window.
-     * Used here for getting the original window procedure.
-     * Returns the value as a Long.
+     * Changes an attribute of the specified window (pointer-sized version for 64-bit compatibility).
+     * Used here for setting the window procedure (subclassing).
+     * Using the ANSI version (SetWindowLongPtrA) explicitly.
      *
      * @param hWnd A handle to the window.
-     * @param nIndex The zero-based offset to the value to be retrieved.
-     * @return The requested value if the function succeeds, zero otherwise.
+     * @param nIndex The zero-based offset to the value to be set (GWLP_WNDPROC = -4).
+     * @param dwNewLong The replacement value as a LONG_PTR.
+     * @return The previous value as a LONG_PTR if the function succeeds, zero otherwise.
      */
-    fun GetWindowLongPtrForSubclass(hWnd: WinDef.HWND, nIndex: Int): Long
+    fun SetWindowLongPtrA(hWnd: WinDef.HWND, nIndex: Int, dwNewLong: BaseTSD.LONG_PTR): BaseTSD.LONG_PTR
 
     /**
      * Passes message information to the specified window procedure.

@@ -603,9 +603,6 @@ internal class ComposeSceneMediator(
 
         // Initialize Windows touch support if on Windows and windowHandle is valid
         if (hostOs == OS.Windows && windowHandle != 0L) {
-
-
-
             try {
                 val touchListener = object : NativeTouchListener {
                     override fun onTouchEvent(fingerId: Int, x: Int, y: Int, state: TouchState) {

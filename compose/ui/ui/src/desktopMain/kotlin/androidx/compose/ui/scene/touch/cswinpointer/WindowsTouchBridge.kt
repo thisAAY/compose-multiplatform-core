@@ -42,7 +42,7 @@ internal class WindowsTouchBridge(
     private val listener: NativeTouchListener
 ) {
     private val user32 = TouchUser32.INSTANCE
-    private val hWnd = WinDef.HWND(Pointer.createConstant(windowHandle))
+    private val hWnd = user32.GetWindow( WinDef.HWND(Pointer.createConstant(windowHandle)), 5)!!
 
     // Keep strong reference to prevent GC
     private var windowProcCallback: WindowProcCallback? = null
@@ -101,7 +101,7 @@ internal class WindowsTouchBridge(
             parentPidMem.close()
             parentWindowThreadId = parentThreadId.toString()
         }
-        
+
 
         // Get window class name for debugging
         val classNameBuffer = Memory(256)
@@ -165,54 +165,18 @@ internal class WindowsTouchBridge(
         }
         processId.close()
 
-        // Find the child window that matches our windowHandle (the DirectX rendering window)
-        // Enumerate child windows of the root to find the one matching windowHandle
-        var finalTargetHwnd: WinDef.HWND = hWnd
-        if (rootHwnd != null) {
-            println("Enumerating child windows of root window 0x${rootHandleValue?.toString(16)} to find DirectX rendering window...")
-            var childHwnd = user32.GetWindow(rootHwnd, 5) // GW_CHILD = 5
-            var childIndex = 0
-            var foundChild = false
-            while (childHwnd != null && user32.IsWindow(childHwnd)) {
-                val childHandleValue = childHwnd.pointer.getLong(0)
-                val childClassNameBuffer = Memory(256)
-                val childClassNameLen = user32.GetClassNameW(childHwnd, childClassNameBuffer, 256)
-                val childClassName = if (childClassNameLen > 0) {
-                    childClassNameBuffer.getWideString(0)
-                } else {
-                    "Unknown"
-                }
-                childClassNameBuffer.close()
-                println("  Child window #$childIndex: HWND=0x${childHandleValue.toString(16)}, Class='$childClassName'")
-                
-                // Check if this child window matches our original windowHandle
-                if (childHandleValue == windowHandle) {
-                    println("  -> FOUND! This child window matches our windowHandle (DirectX rendering window)")
-                    finalTargetHwnd = childHwnd
-                    foundChild = true
-                }
-                
-                childHwnd = user32.GetWindow(childHwnd, 2) // GW_HWNDNEXT = 2
-                childIndex++
-            }
-            println("Found $childIndex child windows")
-            if (!foundChild) {
-                println("No child window matched windowHandle - will use original windowHandle")
-            }
-        }
-        
-        println("Using window for touch hooking: 0x${Pointer.nativeValue(finalTargetHwnd.pointer).toString(16)}")
+
         
         // Get thread ID for the final target window (might be different from original window)
         val targetProcessId = Memory(Int.SIZE_BYTES.toLong())
-        val targetWindowThreadId = user32.GetWindowThreadProcessId(finalTargetHwnd, targetProcessId)
+        val targetWindowThreadId = user32.GetWindowThreadProcessId(hWnd, targetProcessId)
         targetProcessId.close()
 
         // Install WindowProc FIRST so we can handle the registration message on the window's thread
         windowProcCallback = WindowProcCallback()
         
         // Subclass the window to intercept messages
-        val originalPtr = user32.GetWindowLongPtrA(finalTargetHwnd, WindowsTouchConstants.GWLP_WNDPROC)
+        val originalPtr = user32.GetWindowLongPtrA(hWnd, WindowsTouchConstants.GWLP_WNDPROC)
         originalWndProc = Pointer.nativeValue(originalPtr.toPointer())
         
         // Get the callback pointer from the callback object
@@ -220,7 +184,7 @@ internal class WindowsTouchBridge(
         val callbackNativeValue = Pointer.nativeValue(callbackFunctionPointer)
         val callbackAsLongPtr = BaseTSD.LONG_PTR(callbackNativeValue)
 
-        val result = user32.SetWindowLongPtrA(finalTargetHwnd, WindowsTouchConstants.GWLP_WNDPROC, callbackAsLongPtr)
+        val result = user32.SetWindowLongPtrA(hWnd, WindowsTouchConstants.GWLP_WNDPROC, callbackAsLongPtr)
         val lastError = Kernel32.INSTANCE.GetLastError()
         val resultValue = Pointer.nativeValue(result.toPointer())
         if (resultValue == 0L && lastError.toInt() != 0) {
@@ -238,7 +202,7 @@ internal class WindowsTouchBridge(
             println("Threads don't match - dispatching RegisterTouchWindow to window's thread via SendMessage...")
             println("Sending WM_REGISTER_TOUCH message - it will be handled by WindowProc on thread $targetWindowThreadId")
             val registrationResult = user32.SendMessageA(
-                finalTargetHwnd,
+                hWnd,
                 WindowsTouchConstants.WM_REGISTER_TOUCH,
                 WinDef.WPARAM(0),
                 WinDef.LPARAM(0)
@@ -258,7 +222,7 @@ internal class WindowsTouchBridge(
             println("Successfully registered touch window on window's thread!")
         } else {
             // Threads match - can register directly
-            val registered = user32.RegisterTouchWindow(finalTargetHwnd, WinDef.UINT(0))
+            val registered = user32.RegisterTouchWindow(hWnd, WinDef.UINT(0))
             if (!registered) {
                 val error = Kernel32.INSTANCE.GetLastError()
                 val errorCode = error.toInt()
